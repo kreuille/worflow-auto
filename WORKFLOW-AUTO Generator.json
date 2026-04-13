@@ -1,0 +1,962 @@
+{
+  "name": "WORKFLOW-AUTO Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generer-workflow",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "07d094b1-9c3d-4100-9d02-9846fa4506ad",
+      "name": "Webhook entree",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        1184
+      ],
+      "webhookId": "2855d537-3ba3-4ac3-a9a2-2c47811b3dc1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-phase",
+              "leftValue": "={{ $json.body.phase }}",
+              "rightValue": "generate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9f0106a9-07c3-41d1-8da7-26ea110a8ac2",
+      "name": "Phase generate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-phase2",
+              "leftValue": "={{ $json.body.phase }}",
+              "rightValue": "debug",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "877273c1-83cf-45ee-a133-d325c4d6eaee",
+      "name": "Phase debug",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"temperature\": 0.3,\n  \"system\": \"Tu es un expert n8n qui aide les utilisateurs à bien définir leurs workflows avant de les créer.\\n\\nTon rôle : analyser la description du user et poser 2-3 questions ciblées pour clarifier les points ambigus.\\n\\nRéponds TOUJOURS en JSON avec ce format exact :\\n{\\n  \\\"analysis\\\": \\\"Résumé de ce que tu as compris en 1-2 phrases\\\",\\n  \\\"questions\\\": [\\\"Question 1?\\\", \\\"Question 2?\\\"],\\n  \\\"suggestions\\\": [\\\"Conseil technique 1\\\"],\\n  \\\"ready_to_generate\\\": false\\n}\\n\\nSi la description est déjà précise, mets ready_to_generate: true et questions: [].\\nNe mets JAMAIS de texte hors du JSON.\",\n  \"messages\": {{ JSON.stringify($json.body.conversation || [{\"role\": \"user\", \"content\": $json.body.description}]) }}\n}",
+        "options": {}
+      },
+      "id": "db8b9b6d-13fa-4d64-a36a-76fc682f6d05",
+      "name": "Claude clarifie",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3296,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet parsed;\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  parsed = JSON.parse(cleaned.substring(start, end + 1));\n} catch(err) {\n  parsed = { analysis: raw, questions: [], suggestions: [], ready_to_generate: false };\n}\nreturn [{ json: { phase: 'clarify', ...parsed } }];"
+      },
+      "id": "57e2464f-a10f-4d44-85e6-dc8a33d8ad5e",
+      "name": "Parser clarification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "2d86a077-3871-48b1-8625-9af76a464a10",
+      "name": "Reponse clarification",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3696,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 12000,\n  \"temperature\": 0,\n  \"system\": \"Tu es un expert n8n. Tu generes ET audites un workflow n8n en une seule etape.\\n\\nREGLE CONCISION : Maximum 12 nodes. Regroupe les actions dans des nodes Code plutot que de multiplier les nodes individuels.\\n\\nREGLES TYPEVERSION OBLIGATOIRES (ne jamais depasser) :\\n- n8n-nodes-base.set : typeVersion 3.3 MAXIMUM\\n- n8n-nodes-base.httpRequest : typeVersion 4.2 MAXIMUM\\n- n8n-nodes-base.if : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.code : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.webhook : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.googleSheets : typeVersion 4.2 MAXIMUM\\n- n8n-nodes-base.gmail : typeVersion 2.1 MAXIMUM\\n- n8n-nodes-base.telegram : typeVersion 1.1 MAXIMUM\\n- n8n-nodes-base.scheduleTrigger : typeVersion 1.1 MAXIMUM\\n\\nREGLES PLACEHOLDERS dans warnings uniquement :\\n- SPREADSHEET_ID pour l ID Google Sheets\\n- SHEET_NAME pour le nom de l onglet\\n- GOOGLE_OAUTH2_CREDENTIAL_ID pour les credentials OAuth2 Google\\n- TELEGRAM_CHAT_ID pour les chat IDs\\n- API_KEY pour les cles API\\n- EMAIL_RECIPIENT pour les emails\\nExemple : Remplacer SPREADSHEET_ID par l ID de votre Google Sheet\\n\\nAUTRES REGLES :\\n- N utilise JAMAIS OpenAI. Utilise TOUJOURS l API Anthropic avec claude-sonnet-4-6.\\n- N utilise jamais d emojis dans les noms de nodes.\\n- N utilise JAMAIS n8n-nodes-base.formTrigger ni formResponse. Utilise n8n-nodes-base.webhook a la place.\\n- Chaque node a un id unique string.\\n- Premier node = toujours un trigger.\\n- Positions espacees de 200px minimum.\\n- Ajoute toujours un Manual Trigger EN PLUS du trigger principal.\\n\\nFormat de reponse OBLIGATOIRE - JSON brut uniquement, aucun texte avant ou apres :\\n{\\n  \\\"errors\\\": [\\\"erreur corrigee 1\\\"],\\n  \\\"warnings\\\": [\\\"Remplacer PLACEHOLDER par ...\\\"],\\n  \\\"workflow\\\": {\\n    \\\"name\\\": \\\"Nom du workflow\\\",\\n    \\\"nodes\\\": [ ... ],\\n    \\\"connections\\\": { ... },\\n    \\\"settings\\\": { \\\"executionOrder\\\": \\\"v1\\\" },\\n    \\\"pinData\\\": {}\\n  }\\n}\",\n  \"messages\": {{ JSON.stringify($json.body.conversation || [{\"role\": \"user\", \"content\": \"Genere et audite un workflow n8n pour : \" + $json.body.description}]) }}\n}",
+        "options": {}
+      },
+      "id": "a788cc08-8241-4669-823d-4b12ce36d73b",
+      "name": "Claude genere et audite",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3296,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet workflowJson = null;\nlet parseError = null;\nlet auditErrors = [];\nlet auditWarnings = [];\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  const parsed = JSON.parse(cleaned.substring(start, end + 1));\n  workflowJson = parsed.workflow || parsed;\n  auditErrors = parsed.errors || [];\n  auditWarnings = parsed.warnings || [];\n  if(!workflowJson.name || !Array.isArray(workflowJson.nodes) || !workflowJson.connections || !workflowJson.settings) throw new Error('Structure invalide');\n} catch(err) {\n  parseError = err.message;\n  workflowJson = null;\n}\nreturn [{ json: { workflowJson, parseError, isValid: workflowJson !== null, auditErrors, auditWarnings } }];"
+      },
+      "id": "ec93d68f-9fe8-4b11-9834-eb7f73f3724e",
+      "name": "Valider JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitise typeVersions pour compatibilite n8n\nconst input = $input.first().json;\nif (!input.workflowJson || !input.isValid) return [{ json: input }];\n\nconst MAX_VERSIONS = {\n  'n8n-nodes-base.set': 3.3,\n  'n8n-nodes-base.httpRequest': 4.2,\n  'n8n-nodes-base.if': 2,\n  'n8n-nodes-base.code': 2,\n  'n8n-nodes-base.webhook': 2,\n  'n8n-nodes-base.googleSheets': 4.2,\n  'n8n-nodes-base.gmail': 2.1,\n  'n8n-nodes-base.telegram': 1.1,\n  'n8n-nodes-base.scheduleTrigger': 1.1,\n  'n8n-nodes-base.manualTrigger': 1,\n  'n8n-nodes-base.respondToWebhook': 1.1,\n  'n8n-nodes-base.splitInBatches': 3,\n  'n8n-nodes-base.googleDrive': 3,\n  'n8n-nodes-base.extractFromFile': 1,\n  'n8n-nodes-base.formTrigger': 1,\n  'n8n-nodes-base.formResponse': 1,\n  'n8n-nodes-base.spreadsheetFile': 2,\n  'n8n-nodes-base.readBinaryFile': 1,\n  'n8n-nodes-base.writeBinaryFile': 1,\n  'n8n-nodes-base.merge': 2.1,\n  'n8n-nodes-base.switch': 3,\n  'n8n-nodes-base.filter': 1,\n  'n8n-nodes-base.aggregate': 1,\n  'n8n-nodes-base.limit': 1\n};\n\ninput.workflowJson.nodes = input.workflowJson.nodes.map(n => {\n  const max = MAX_VERSIONS[n.type];\n  if (max && n.typeVersion > max) {\n    n.typeVersion = max;\n  } else if (!max && n.typeVersion > 2) {\n    // Nodes inconnus : force typeVersion 1 si > 2\n    n.typeVersion = 1;\n  }\n  return n;\n});\n\nreturn [{ json: input }];"
+      },
+      "id": "60036893-154f-4866-93a9-baa3494f31ef",
+      "name": "Sanitiser typeVersions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-valid",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "efeaa4f9-82ad-4c0b-849a-26c1dee9df82",
+      "name": "JSON valide",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_N8N_URL/api/v1/workflows",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ name: $json.workflowJson.name, nodes: $json.workflowJson.nodes, connections: $json.workflowJson.connections, settings: $json.workflowJson.settings }) }}",
+        "options": {}
+      },
+      "id": "29a4c6a8-da45-464e-995e-93ebdf436f2b",
+      "name": "Creer workflow API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3888,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const wf = $input.first().json;\nconst auditErrors = $('Sanitiser typeVersions').first().json.auditErrors || [];\nconst auditWarnings = $('Sanitiser typeVersions').first().json.auditWarnings || [];\n\nlet nodes = [...wf.nodes];\nlet connections = JSON.parse(JSON.stringify(wf.connections));\n\nconst triggerTypes = ['Trigger','webhook','schedule','cron','interval','manualTrigger'];\nconst firstTrigger = wf.nodes.find(n =>\n  triggerTypes.some(t => n.type.toLowerCase().includes(t.toLowerCase()))\n);\nconst triggerName = firstTrigger ? firstTrigger.name : null;\nconst firstTarget = triggerName && connections[triggerName]\n  ? connections[triggerName].main[0][0].node : null;\n\nconst hasManualTrigger = wf.nodes.some(n => n.type === 'n8n-nodes-base.manualTrigger');\nif (!hasManualTrigger) {\n  const posX = firstTrigger ? firstTrigger.position[0] : 250;\n  const posY = firstTrigger ? firstTrigger.position[1] - 120 : 180;\n  nodes = [{ id: 'manual-trigger-auto', name: 'Manual Trigger', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [posX, posY], parameters: {} }, ...nodes];\n  if (firstTarget) connections['Manual Trigger'] = { main: [[{ node: firstTarget, type: 'main', index: 0 }]] };\n}\n\nconst webhookPath = 'run-' + wf.id;\n\n// Detecte le vrai chemin webhook principal (pas le run trigger)\nconst realWebhookNode = wf.nodes.find(n =>\n  n.type === 'n8n-nodes-base.webhook' &&\n  n.name !== 'WORKFLOW-AUTO Run Trigger' &&\n  n.parameters && n.parameters.path\n);\nconst realWebhookPath = realWebhookNode ? realWebhookNode.parameters.path : null;\nconst hasRunTrigger = wf.nodes.some(n => n.name === 'WORKFLOW-AUTO Run Trigger');\nif (!hasRunTrigger && firstTarget) {\n  const posX = firstTrigger ? firstTrigger.position[0] : 250;\n  const posY = firstTrigger ? firstTrigger.position[1] - 240 : 60;\n  nodes = [{\n    id: 'aegis-run-trigger',\n    name: 'WORKFLOW-AUTO Run Trigger',\n    type: 'n8n-nodes-base.webhook',\n    typeVersion: 2,\n    position: [posX, posY],\n    parameters: { httpMethod: 'POST', path: webhookPath, responseMode: 'onReceived', options: {} }\n  }, ...nodes];\n  connections['WORKFLOW-AUTO Run Trigger'] = { main: [[{ node: firstTarget, type: 'main', index: 0 }]] };\n  auditWarnings.push('Webhook WORKFLOW-AUTO injecte : POST /webhook/' + webhookPath);\n}\n\n// Analyse du workflow pour générer testPayload et uiSpec\nconst webhookNode = wf.nodes.find(n => n.type === 'n8n-nodes-base.webhook' && n.name !== 'WORKFLOW-AUTO Run Trigger');\nconst scheduleNode = wf.nodes.find(n => n.type === 'n8n-nodes-base.scheduleTrigger');\n\n// Détecter les champs attendus depuis les nodes Code\nlet detectedFields = [];\nlet testPayload = {};\nlet uiSpec = { needed: false, fields: [], title: wf.name, description: '' };\n\n// Scan tous les nodes Code pour trouver les champs référencés\nwf.nodes.forEach(n => {\n  if (n.type === 'n8n-nodes-base.code' && n.parameters && n.parameters.jsCode) {\n    const code = n.parameters.jsCode;\n    // Cherche patterns comme $json.prenom, body.email, $json['nom'], json.message\n    const matches = code.match(/\\$json\\.([a-zA-Z_][a-zA-Z0-9_]*)/g) || [];\n    const matches2 = code.match(/body\\.([a-zA-Z_][a-zA-Z0-9_]*)/g) || [];\n    const matches3 = code.match(/\\$json\\['([^']+)'\\]/g) || [];\n    [...matches, ...matches2, ...matches3].forEach(m => {\n      const field = m.replace(/\\$json\\.|body\\.|\\$json\\[|'|\\]/g, '');\n      if (!['source', 'headers', 'query', 'body', 'params'].includes(field) && !detectedFields.includes(field)) {\n        detectedFields.push(field);\n      }\n    });\n  }\n  // Scan aussi les expressions dans les autres nodes\n  if (n.parameters) {\n    JSON.stringify(n.parameters).match(/\\$json\\.([a-zA-Z_][a-zA-Z0-9_]*)/g)?.forEach(m => {\n      const field = m.replace('$json.', '');\n      if (!['source', 'id', 'name', 'type'].includes(field) && !detectedFields.includes(field)) {\n        detectedFields.push(field);\n      }\n    });\n  }\n});\n\n// Génère testPayload et uiSpec depuis les champs détectés\nif (detectedFields.length > 0) {\n  detectedFields.forEach(field => {\n    const lower = field.toLowerCase();\n    if (lower.includes('email')) { testPayload[field] = 'test@example.com'; }\n    else if (lower.includes('nom') || lower.includes('prenom') || lower.includes('name')) { testPayload[field] = 'Jean Dupont'; }\n    else if (lower.includes('tel') || lower.includes('phone')) { testPayload[field] = '+33612345678'; }\n    else if (lower.includes('date')) { testPayload[field] = new Date().toISOString().slice(0,10); }\n    else if (lower.includes('montant') || lower.includes('prix') || lower.includes('amount')) { testPayload[field] = 100; }\n    else if (lower.includes('message') || lower.includes('texte') || lower.includes('text') || lower.includes('instruction')) { testPayload[field] = 'Ceci est un test'; }\n    else if (lower.includes('id')) { testPayload[field] = '12345'; }\n    else { testPayload[field] = 'valeur_test'; }\n\n    // UI field type detection\n    const isTextarea = lower.includes('message') || lower.includes('texte') || lower.includes('description') || lower.includes('instruction');\n    const isEmail = lower.includes('email');\n    const isFile = lower.includes('file') || lower.includes('fichier') || lower.includes('document');\n    uiSpec.fields.push({\n      name: field,\n      label: field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' '),\n      type: isFile ? 'file' : isEmail ? 'email' : isTextarea ? 'textarea' : 'text',\n      placeholder: 'Entrez ' + field,\n      required: true\n    });\n  });\n  uiSpec.needed = webhookNode ? true : false;\n  uiSpec.description = 'Interface pour ' + wf.name;\n}\n\n// Si workflow schedule (pas de webhook), pas d'UI nécessaire\nif (scheduleNode && !webhookNode) {\n  uiSpec.needed = false;\n  testPayload = {};\n}\n\nreturn [{\n  json: {\n    workflowId: wf.id,\n    workflowName: wf.name,\n    webhookPath,\n    realWebhookPath,\n    auditErrors,\n    auditWarnings,\n    testPayload,\n    uiSpec,\n    putBody: {\n      name: wf.name,\n      nodes,\n      connections,\n      settings: { executionOrder: 'v1', errorWorkflow: 'YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1' }\n    }\n  }\n}];"
+      },
+      "id": "ec61d97d-88c9-43be-9989-79ee495760c5",
+      "name": "Preparer body autodebug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4096,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.putBody }}",
+        "options": {}
+      },
+      "id": "1812c0fd-dbb4-44d5-af68-1e133ec7eb5f",
+      "name": "Assigner Autodebug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4288,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $('Preparer body autodebug').first().json.workflowId }}/activate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7f069445-496d-49f4-8418-30cb91c0b7a6",
+      "name": "Activer le workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4496,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => {\n  try {\n    const resp = {\n      phase: 'generated',\n      success: true,\n      workflowId: $('Creer workflow API').first().json.id,\n      name: $('Creer workflow API').first().json.name,\n      url: 'YOUR_N8N_URL/workflow/' + $('Creer workflow API').first().json.id,\n      webhookPath: $('Preparer body autodebug').first().json.webhookPath,\n      realWebhookPath: $('Preparer body autodebug').first().json.realWebhookPath || null,\n      auditWarnings: $('Preparer body autodebug').first().json.auditWarnings || [],\n      auditErrors: $('Preparer body autodebug').first().json.auditErrors || [],\n      testPayload: $('Preparer body autodebug').first().json.testPayload || {},\n      uiSpec: $('Preparer body autodebug').first().json.uiSpec || { needed: false, fields: [] }\n    };\n    return JSON.stringify(resp);\n  } catch(e) {\n    return JSON.stringify({ phase: 'generated', success: true, workflowId: $('Creer workflow API').first().json.id, name: $('Creer workflow API').first().json.name, url: 'YOUR_N8N_URL/workflow/' + $('Creer workflow API').first().json.id, webhookPath: $('Preparer body autodebug').first().json.webhookPath,\n      realWebhookPath: $('Preparer body autodebug').first().json.realWebhookPath || null, auditWarnings: [], auditErrors: [], testPayload: {}, uiSpec: { needed: false, fields: [] } });\n  }\n})() }}",
+        "options": {}
+      },
+      "id": "34fa47a2-7f97-4603-8699-77f8c58ac11c",
+      "name": "Reponse succes generation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4704,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ phase: 'generated', success: false, error: $json.parseError }) }}",
+        "options": {}
+      },
+      "id": "a25bd9d8-cf55-41bd-b79a-5fa1de395878",
+      "name": "Reponse echec generation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3696,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.body.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e1294c3b-6557-4d92-a2b3-f4f909af32c5",
+      "name": "Recuperer workflow existant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3296,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const wf = $input.first().json;\nconst errorMsg = $('Webhook entree').first().json.body.error || 'Effectue un audit complet du workflow : credentials manquants, URLs non configurees, connexions incorrectes, nodes mal configures. Corrige tout ce qui peut etre corrige automatiquement.';\n\nconst workflowData = JSON.stringify({\n  name: wf.name,\n  nodes: wf.nodes,\n  connections: wf.connections,\n  settings: wf.settings\n}).slice(0, 40000);\n\nconst body = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 8192,\n  temperature: 0,\n  system: 'Tu es un expert n8n en mode debug. On te donne un workflow n8n existant et un message d erreur.\\n\\nTon travail : analyser l erreur, identifier le node fautif, corriger le workflow.\\n\\nREGLES TYPEVERSION OBLIGATOIRES (ne jamais depasser) :\\n- n8n-nodes-base.set : typeVersion 3.3 MAXIMUM\\n- n8n-nodes-base.httpRequest : typeVersion 4.2 MAXIMUM\\n- n8n-nodes-base.if : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.code : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.webhook : typeVersion 2 MAXIMUM\\n- n8n-nodes-base.googleSheets : typeVersion 4.2 MAXIMUM\\n- n8n-nodes-base.gmail : typeVersion 2.1 MAXIMUM\\n- n8n-nodes-base.telegram : typeVersion 1.1 MAXIMUM\\n\\nReponds TOUJOURS en JSON avec ce format exact :\\n{\\n  \"diagnosis\": \"Explication de l erreur en 1-2 phrases\",\\n  \"fix\": \"Description de la correction appliquee\",\\n  \"workflow\": { ... le workflow n8n corrige complet ... }\\n}\\n\\nNe mets JAMAIS de texte hors du JSON.',\n  messages: [{\n    role: 'user',\n    content: 'Erreur rencontree : ' + errorMsg + '\\n\\nWorkflow actuel :\\n' + workflowData\n  }]\n};\n\nreturn [{ json: { anthropicBody: JSON.stringify(body) } }];"
+      },
+      "id": "8a0cb07c-7e09-4c38-81c1-4e2eb32bbb43",
+      "name": "Construire body debug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.anthropicBody }}",
+        "options": {}
+      },
+      "id": "83c1bb48-31f2-405e-b588-4b55ebd65ecc",
+      "name": "Claude debug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3696,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet parsed;\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  parsed = JSON.parse(cleaned.substring(start, end + 1));\n} catch(err) {\n  return [{ json: { success: false, error: 'Parse error: ' + err.message } }];\n}\nreturn [{ json: { diagnosis: parsed.diagnosis, fix: parsed.fix, workflowJson: parsed.workflow, isValid: !!parsed.workflow } }];"
+      },
+      "id": "e53f00c6-3337-44a4-ad52-8a758317ce02",
+      "name": "Parser debug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitise typeVersions dans le workflow corrige\nconst input = $input.first().json;\nif (!input.workflowJson || !input.isValid) return [{ json: input }];\n\nconst MAX_VERSIONS = {\n  'n8n-nodes-base.set': 3.3,\n  'n8n-nodes-base.httpRequest': 4.2,\n  'n8n-nodes-base.if': 2,\n  'n8n-nodes-base.code': 2,\n  'n8n-nodes-base.webhook': 2,\n  'n8n-nodes-base.googleSheets': 4.2,\n  'n8n-nodes-base.gmail': 2.1,\n  'n8n-nodes-base.telegram': 1.1,\n  'n8n-nodes-base.scheduleTrigger': 1.1,\n  'n8n-nodes-base.manualTrigger': 1,\n  'n8n-nodes-base.respondToWebhook': 1.1,\n  'n8n-nodes-base.splitInBatches': 3,\n  'n8n-nodes-base.googleDrive': 3,\n  'n8n-nodes-base.extractFromFile': 1,\n  'n8n-nodes-base.formTrigger': 1,\n  'n8n-nodes-base.formResponse': 1,\n  'n8n-nodes-base.spreadsheetFile': 2,\n  'n8n-nodes-base.readBinaryFile': 1,\n  'n8n-nodes-base.writeBinaryFile': 1,\n  'n8n-nodes-base.merge': 2.1,\n  'n8n-nodes-base.switch': 3,\n  'n8n-nodes-base.filter': 1,\n  'n8n-nodes-base.aggregate': 1,\n  'n8n-nodes-base.limit': 1\n};\n\ninput.workflowJson.nodes = input.workflowJson.nodes.map(n => {\n  const max = MAX_VERSIONS[n.type];\n  if (max && n.typeVersion > max) {\n    n.typeVersion = max;\n  } else if (!max && n.typeVersion > 2) {\n    n.typeVersion = 1;\n  }\n  return n;\n});\n\nreturn [{ json: input }];"
+      },
+      "id": "fcf8c727-ecc9-4d42-bfd4-260d40b08785",
+      "name": "Sanitiser typeVersions debug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst workflowId = $('Webhook entree').first().json.body.workflowId;\n\nif(!input.workflowJson || !input.isValid) {\n  return [{ json: { workflowId, diagnosis: input.error || 'Parse error', fix: 'Correction impossible - JSON invalide', putBody: null, webhookPath: 'run-' + workflowId } }];\n}\n\nconst wf = input.workflowJson;\nlet nodes = [...wf.nodes];\nlet connections = JSON.parse(JSON.stringify(wf.connections));\n\nconst triggerTypes = ['Trigger','webhook','schedule','cron','interval','manualTrigger'];\nconst firstTrigger = wf.nodes.find(n =>\n  triggerTypes.some(t => n.type.toLowerCase().includes(t.toLowerCase()))\n);\nconst triggerName = firstTrigger ? firstTrigger.name : null;\nconst firstTarget = triggerName && connections[triggerName]\n  ? connections[triggerName].main[0][0].node : null;\n\nconst hasManualTrigger = wf.nodes.some(n => n.type === 'n8n-nodes-base.manualTrigger');\nif (!hasManualTrigger) {\n  const posX = firstTrigger ? firstTrigger.position[0] : 250;\n  const posY = firstTrigger ? firstTrigger.position[1] - 120 : 180;\n  nodes = [{ id: 'manual-trigger-auto', name: 'Manual Trigger', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [posX, posY], parameters: {} }, ...nodes];\n  if (firstTarget) connections['Manual Trigger'] = { main: [[{ node: firstTarget, type: 'main', index: 0 }]] };\n}\n\nconst webhookPath = 'run-' + workflowId;\nconst hasRunTrigger = wf.nodes.some(n => n.name === 'WORKFLOW-AUTO Run Trigger');\nif (!hasRunTrigger && firstTarget) {\n  const posX = firstTrigger ? firstTrigger.position[0] : 250;\n  const posY = firstTrigger ? firstTrigger.position[1] - 240 : 60;\n  nodes = [{\n    id: 'aegis-run-trigger',\n    name: 'WORKFLOW-AUTO Run Trigger',\n    type: 'n8n-nodes-base.webhook',\n    typeVersion: 2,\n    position: [posX, posY],\n    parameters: { httpMethod: 'POST', path: webhookPath, responseMode: 'onReceived', options: {} }\n  }, ...nodes];\n  connections['WORKFLOW-AUTO Run Trigger'] = { main: [[{ node: firstTarget, type: 'main', index: 0 }]] };\n}\n\nreturn [{\n  json: {\n    workflowId,\n    diagnosis: input.diagnosis,\n    fix: input.fix,\n    webhookPath,\n    putBody: {\n      name: wf.name,\n      nodes,\n      connections,\n      settings: { executionOrder: 'v1', errorWorkflow: 'YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1' }\n    }\n  }\n}];"
+      },
+      "id": "2e4e88e4-6587-44f9-bd19-22a5c33c99e7",
+      "name": "Preparer body debug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4096,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.putBody }}",
+        "options": {}
+      },
+      "id": "66695d15-52d2-4435-9b68-073e82b4bde6",
+      "name": "Patcher workflow corrige",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4288,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $('Preparer body debug').first().json.workflowId }}/activate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7fb8c759-cb56-42a1-b8a8-11a7ea37e915",
+      "name": "Activer apres debug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4496,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ phase: 'debug', success: true, diagnosis: $('Preparer body debug').first().json.diagnosis, fix: $('Preparer body debug').first().json.fix, workflowId: $('Preparer body debug').first().json.workflowId, webhookPath: $('Preparer body debug').first().json.webhookPath, url: 'YOUR_N8N_URL/workflow/' + $('Preparer body debug').first().json.workflowId }) }}",
+        "options": {}
+      },
+      "id": "aeae20ce-d033-4384-88c0-8fea63651f0f",
+      "name": "Reponse debug succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4704,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-phase-ui",
+              "leftValue": "={{ $json.body.phase }}",
+              "rightValue": "ui",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7ee3fa82-e090-40cf-9950-bf75d7caf856",
+      "name": "Phase UI",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook entree').first().json.body;\nconst wfId = body.workflowId || '';\nconst webhookUrl = body.webhookUrl || '';\nconst users = body.users || 'grand public';\nconst inputs = body.inputs || 'formulaire';\nconst output = body.output || 'message de confirmation';\nconst style = body.style || 'minimal';\nconst extra = body.extra || '';\nconst hasFile = /fichier|file|excel|pdf|upload/i.test(inputs);\n\nconst prompt = [\n  'Genere une interface HTML complete, autonome et moderne.',\n  '',\n  'WEBHOOK CIBLE : POST ' + webhookUrl,\n  'TYPE : ' + (hasFile ? 'multipart/form-data' : 'application/json'),\n  'UTILISATEURS : ' + users,\n  'CHAMPS : ' + inputs,\n  'RESULTAT : ' + output,\n  'STYLE : ' + style,\n  extra ? 'EXTRA : ' + extra : '',\n  '',\n  'REGLES :',\n  '1. Fichier HTML complet autonome, tout inline, aucun CDN',\n  '2. Si upload fichier : FormData, sinon JSON',\n  '3. Spinner pendant appel, afficher resultat JSON apres',\n  '4. Gestion erreurs reseau',\n  '5. Design responsive professionnel',\n  '6. Reponds UNIQUEMENT avec le code HTML complet'\n].filter(Boolean).join('\\n');\n\nconst body2 = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 8000,\n  temperature: 0,\n  messages: [{ role: 'user', content: prompt }]\n};\n\nreturn [{ json: { anthropicBody: JSON.stringify(body2), workflowId: wfId } }];"
+      },
+      "id": "47107b02-61fe-4287-89f4-5f83d95f34ca",
+      "name": "Construire body UI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3296,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.anthropicBody }}",
+        "options": {}
+      },
+      "id": "1f2663e9-2310-4bce-9160-8d5a0f8e7ac6",
+      "name": "Claude genere UI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3504,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ phase: 'ui', success: true, html: $json.content[0].text, workflowId: $('Construire body UI').first().json.workflowId }) }}",
+        "options": {}
+      },
+      "id": "02d9bd9b-c5a0-4ccf-aa18-7ea3fc8bf0fa",
+      "name": "Reponse UI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3696,
+        1600
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook entree": {
+      "main": [
+        [
+          {
+            "node": "Phase generate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phase generate": {
+      "main": [
+        [
+          {
+            "node": "Claude genere et audite",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Phase debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phase debug": {
+      "main": [
+        [
+          {
+            "node": "Recuperer workflow existant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Phase UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude clarifie": {
+      "main": [
+        [
+          {
+            "node": "Parser clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser clarification": {
+      "main": [
+        [
+          {
+            "node": "Reponse clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude genere et audite": {
+      "main": [
+        [
+          {
+            "node": "Valider JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider JSON": {
+      "main": [
+        [
+          {
+            "node": "Sanitiser typeVersions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitiser typeVersions": {
+      "main": [
+        [
+          {
+            "node": "JSON valide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON valide": {
+      "main": [
+        [
+          {
+            "node": "Creer workflow API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reponse echec generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Creer workflow API": {
+      "main": [
+        [
+          {
+            "node": "Preparer body autodebug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer body autodebug": {
+      "main": [
+        [
+          {
+            "node": "Assigner Autodebug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assigner Autodebug": {
+      "main": [
+        [
+          {
+            "node": "Activer le workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activer le workflow": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperer workflow existant": {
+      "main": [
+        [
+          {
+            "node": "Construire body debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construire body debug": {
+      "main": [
+        [
+          {
+            "node": "Claude debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude debug": {
+      "main": [
+        [
+          {
+            "node": "Parser debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser debug": {
+      "main": [
+        [
+          {
+            "node": "Sanitiser typeVersions debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitiser typeVersions debug": {
+      "main": [
+        [
+          {
+            "node": "Preparer body debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer body debug": {
+      "main": [
+        [
+          {
+            "node": "Patcher workflow corrige",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patcher workflow corrige": {
+      "main": [
+        [
+          {
+            "node": "Activer apres debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activer apres debug": {
+      "main": [
+        [
+          {
+            "node": "Reponse debug succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phase UI": {
+      "main": [
+        [
+          {
+            "node": "Construire body UI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claude clarifie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construire body UI": {
+      "main": [
+        [
+          {
+            "node": "Claude genere UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude genere UI": {
+      "main": [
+        [
+          {
+            "node": "Reponse UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "1f5d2561-8025-4016-9373-cc41e8c13d2a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6d0e2ce111adb4d440a63ba6c181d30e6da34c7023061c30b6db878f70e04a4c"
+  },
+  "id": "R80Ph6CGo1L0bNNf",
+  "tags": []
+}

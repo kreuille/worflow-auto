@@ -1,0 +1,245 @@
+{
+  "name": "WORKFLOW-AUTO Autodebug",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d8c850a3-10ed-498f-8143-6233dff54568",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json;\nreturn [{ json: {\n  workflowId: String(err.workflow?.id || ''),\n  workflowName: err.workflow?.name || 'Unknown',\n  nodeName: err.execution?.lastNodeExecuted || 'Unknown',\n  errorMessage: err.execution?.error?.message || err.error?.message || 'Unknown error',\n  errorStack: (err.execution?.error?.stack || err.error?.stack || '').slice(0, 500),\n  executionId: err.execution?.id || ''\n}}];"
+      },
+      "id": "a2e54779-c228-4d6f-bac9-45161ccb3c48",
+      "name": "Extraire infos erreur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "059e4162-ec04-4afd-895b-5b63c98dea87",
+      "name": "Recuperer workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 8192,\n  \"temperature\": 0,\n  \"system\": \"Tu es un expert n8n en mode debug automatique.\\n\\nOn te donne un workflow n8n qui a planté, le nom du node fautif et le message d'erreur.\\n\\nTon travail : analyser l'erreur, corriger le workflow, retourner le workflow complet corrigé.\\n\\nRéponds UNIQUEMENT en JSON :\\n{\\n  \\\"diagnosis\\\": \\\"Cause de l'erreur en 1 phrase\\\",\\n  \\\"fix\\\": \\\"Ce qui a été corrigé en 1 phrase\\\",\\n  \\\"workflow\\\": { ... workflow n8n complet corrigé ... }\\n}\\n\\nNe mets JAMAIS de texte hors du JSON.\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Workflow : {{ $('Extraire infos erreur').first().json.workflowName }}\\nNode fautif : {{ $('Extraire infos erreur').first().json.nodeName }}\\nErreur : {{ $('Extraire infos erreur').first().json.errorMessage }}\\n\\nJSON du workflow :\\n{{ JSON.stringify($input.first().json).slice(0, 40000) }}\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "c088a575-fee4-448b-b021-99d6bff4a74b",
+      "name": "Claude analyse et corrige",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        928,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet parsed;\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  parsed = JSON.parse(cleaned.substring(start, end + 1));\n} catch(err) {\n  return [{ json: { success: false, error: err.message } }];\n}\nreturn [{ json: { diagnosis: parsed.diagnosis, fix: parsed.fix, workflowJson: parsed.workflow, isValid: !!parsed.workflow } }];"
+      },
+      "id": "a7e351c8-1dc9-411c-aab3-9650d158f196",
+      "name": "Parser reponse Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $('Extraire infos erreur').first().json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ name: $json.workflowJson.name, nodes: $json.workflowJson.nodes, connections: $json.workflowJson.connections, settings: $json.workflowJson.settings }) }}",
+        "options": {}
+      },
+      "id": "f999c1e1-ce8f-472d-86d5-2857c82a48c2",
+      "name": "Patcher le workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_N8N_URL/webhook/auto-correct",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  workflowId: $('Extraire infos erreur').first().json.workflowId,\n  errorMessage: $('Extraire infos erreur').first().json.errorMessage,\n  nodeName: $('Extraire infos erreur').first().json.nodeName,\n  attempt: 1\n}) }}",
+        "options": {}
+      },
+      "id": "c1114331-ccd4-4d3a-a49a-3ea171c48eb8",
+      "name": "Lancer Auto-Corrector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1536,
+        -16
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extraire infos erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire infos erreur": {
+      "main": [
+        [
+          {
+            "node": "Recuperer workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperer workflow": {
+      "main": [
+        [
+          {
+            "node": "Claude analyse et corrige",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude analyse et corrige": {
+      "main": [
+        [
+          {
+            "node": "Parser reponse Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser reponse Claude": {
+      "main": [
+        [
+          {
+            "node": "Patcher le workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patcher le workflow": {
+      "main": [
+        [
+          {
+            "node": "Lancer Auto-Corrector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "b960e0c5-e483-4ffb-9e5d-3c0e8d513860",
+  "meta": {
+    "instanceId": "6d0e2ce111adb4d440a63ba6c181d30e6da34c7023061c30b6db878f70e04a4c"
+  },
+  "id": "YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1",
+  "tags": []
+}

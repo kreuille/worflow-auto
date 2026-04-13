@@ -1,0 +1,2413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>workflow-auto — AI workflow generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090b;
+  --s1: #111113;
+  --s2: #18181b;
+  --s3: #27272a;
+  --border: rgba(255,255,255,0.06);
+  --border-bright: rgba(255,255,255,0.12);
+  --accent: #a855f7;
+  --accent-glow: rgba(168,85,247,0.15);
+  --accent-dim: rgba(168,85,247,0.08);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.08);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.08);
+  --warn: #fb923c;
+  --warn-dim: rgba(251,146,60,0.08);
+  --danger: #f87171;
+  --danger-dim: rgba(248,113,113,0.08);
+  --text: #fafafa;
+  --text-2: #a1a1aa;
+  --text-3: #52525b;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Plus Jakarta Sans', sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mesh background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(168,85,247,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(34,211,238,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 60% 40%, rgba(168,85,247,0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle dot grid */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ── */
+.header {
+  position: relative;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9,9,11,0.8);
+  backdrop-filter: blur(20px);
+  flex-shrink: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(168,85,247,0.4);
+  animation: logoGlow 3s ease-in-out infinite;
+}
+
+@keyframes logoGlow {
+  0%, 100% { box-shadow: 0 0 16px rgba(168,85,247,0.4); }
+  50% { box-shadow: 0 0 28px rgba(168,85,247,0.7); }
+}
+
+.logo-mark svg {
+  width: 14px;
+  height: 14px;
+  fill: white;
+}
+
+.logo-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.logo-name span {
+  color: var(--accent);
+}
+
+.logo-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(168,85,247,0.2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--s2);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(74,222,128,0.6);
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── TABS ── */
+.nav {
+  position: relative;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 24px;
+  height: 48px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9,9,11,0.6);
+  backdrop-filter: blur(20px);
+  flex-shrink: 0;
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.nav-tab:hover {
+  color: var(--text-2);
+  background: var(--s2);
+}
+
+.nav-tab.active {
+  color: var(--text);
+  background: var(--s2);
+  border: 1px solid var(--border-bright);
+}
+
+.nav-tab.active .tab-num {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.nav-tab.done .tab-num {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+
+.nav-tab.locked {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.tab-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  transition: all 0.15s;
+}
+
+.nav-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* ── LAYOUT ── */
+.main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  overflow: hidden;
+}
+
+.content {
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── PANELS ── */
+.panel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+  animation: panelIn 0.2s ease;
+}
+
+.panel.active { display: flex; }
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panel-header {
+  margin-bottom: 24px;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+}
+
+.panel-sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ── FORM ELEMENTS ── */
+.field {
+  margin-bottom: 18px;
+}
+
+.field-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+textarea, input[type=text] {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 12px 14px;
+  outline: none;
+  transition: all 0.15s ease;
+  resize: none;
+  line-height: 1.6;
+}
+
+textarea:focus, input[type=text]:focus {
+  border-color: var(--accent);
+  background: rgba(168,85,247,0.04);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+textarea { min-height: 120px; resize: vertical; }
+
+/* ── TEMPLATES ── */
+.tpls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.tpl {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  letter-spacing: 0.3px;
+}
+
+.tpl:hover {
+  color: var(--accent);
+  border-color: rgba(168,85,247,0.4);
+  background: var(--accent-dim);
+  transform: translateY(-1px);
+}
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.3);
+}
+
+.btn-primary:hover {
+  background: #b978f9;
+  box-shadow: 0 6px 20px rgba(168,85,247,0.45);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--s2);
+  color: var(--text-2);
+  border: 1px solid var(--border-bright);
+}
+
+.btn-secondary:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.2);
+  background: var(--s3);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  color: var(--accent);
+  border-color: rgba(168,85,247,0.4);
+  background: var(--accent-dim);
+}
+
+.btn-success {
+  background: rgba(74,222,128,0.1);
+  color: var(--green);
+  border: 1px solid rgba(74,222,128,0.2);
+}
+
+.btn-success:hover {
+  background: rgba(74,222,128,0.15);
+  box-shadow: 0 0 20px rgba(74,222,128,0.15);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn.loading { color: transparent !important; }
+
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+
+.btn-primary.loading::after { border-color: rgba(255,255,255,0.3); border-top-color: white; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-row { display: flex; gap: 10px; margin-top: 20px; }
+.btn-full { width: 100%; }
+
+/* ── CLARIFY BOX ── */
+.clarify-box {
+  background: var(--s2);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 18px;
+  display: none;
+  animation: slideDown 0.2s ease;
+}
+
+.clarify-box.show { display: block; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.clarify-analysis {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.clarify-q {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: flex-start;
+}
+
+.q-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(168,85,247,0.2);
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+
+.q-text { font-size: 13px; line-height: 1.6; color: var(--text); }
+
+.suggestion {
+  font-size: 12px;
+  color: var(--cyan);
+  padding: 7px 12px;
+  background: var(--cyan-dim);
+  border: 1px solid rgba(34,211,238,0.15);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+/* ── RESULT CARDS ── */
+.result-card {
+  border-radius: var(--radius);
+  padding: 18px;
+  display: none;
+  margin-bottom: 18px;
+  animation: cardIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.result-card.show { display: block; }
+
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.card-success {
+  background: linear-gradient(135deg, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.02) 100%);
+  border: 1px solid rgba(74,222,128,0.2);
+}
+
+.card-error {
+  background: rgba(248,113,113,0.05);
+  border: 1px solid rgba(248,113,113,0.2);
+}
+
+.card-debug {
+  background: linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(34,211,238,0.03) 100%);
+  border: 1px solid rgba(168,85,247,0.2);
+}
+
+.card-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-success .card-label { color: var(--green); }
+.card-error .card-label { color: var(--danger); }
+.card-debug .card-label { color: var(--accent); }
+
+.card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.kv-list { display: flex; flex-direction: column; gap: 0; }
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.kv-row:last-child { border: none; }
+
+.kv-key {
+  font-family: var(--mono);
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.kv-val {
+  font-family: var(--mono);
+  color: var(--text);
+  font-size: 11px;
+  text-align: right;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kv-active { color: var(--green) !important; }
+
+/* Audit block */
+.audit-block {
+  display: none;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.audit-section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.audit-item {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  line-height: 1.5;
+  border-left: 2px solid;
+}
+
+.audit-item.error {
+  color: var(--danger);
+  background: var(--danger-dim);
+  border-color: var(--danger);
+}
+
+.audit-item.warn {
+  color: var(--warn);
+  background: var(--warn-dim);
+  border-color: var(--warn);
+}
+
+/* Diag / Fix */
+.diag-block {
+  background: rgba(168,85,247,0.06);
+  border: 1px solid rgba(168,85,247,0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.fix-block {
+  background: var(--s3);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+.open-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.open-btn-green {
+  background: var(--green);
+  color: #000;
+  box-shadow: 0 4px 14px rgba(74,222,128,0.2);
+}
+
+.open-btn-green:hover { background: #6ee7a0; box-shadow: 0 6px 20px rgba(74,222,128,0.35); }
+
+.open-btn-purple {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.2);
+}
+
+.open-btn-purple:hover { background: #b978f9; }
+
+/* ── DEBUG SECTION ── */
+.debug-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.section-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.debug-id-group {
+  background: var(--s2);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.debug-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.debug-btn-full {
+  grid-column: 1 / -1;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--s1);
+}
+
+.sidebar-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.config-item:last-child { border: none; }
+
+.config-key {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.config-val {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.url-input-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.url-input-group input {
+  flex: 1;
+  font-size: 10px;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  min-height: unset;
+}
+
+.url-ok-btn {
+  background: var(--s3);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.url-ok-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.workflow-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-2);
+  text-decoration: none;
+  transition: all 0.12s;
+}
+
+.workflow-link:hover {
+  border-color: rgba(168,85,247,0.3);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.workflow-link-arrow {
+  color: var(--text-3);
+  transition: transform 0.12s;
+}
+
+.workflow-link:hover .workflow-link-arrow {
+  transform: translateX(2px);
+  color: var(--accent);
+}
+
+/* ── LOG ── */
+.log-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.log-title-text {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.log-clear {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+}
+
+.log-clear:hover { border-color: var(--border); color: var(--text-2); }
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--s3) transparent;
+}
+
+.log::-webkit-scrollbar { width: 4px; }
+.log::-webkit-scrollbar-track { background: transparent; }
+.log::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 2px; }
+
+.log-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.8;
+  animation: logIn 0.15s ease;
+}
+
+@keyframes logIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.log-t { color: var(--text-3); flex-shrink: 0; font-size: 9px; padding-top: 1px; }
+.log-line .ok { color: var(--green); }
+.log-line .err { color: var(--danger); }
+.log-line .inf { color: var(--text-2); }
+.log-line .wrn { color: var(--warn); }
+.log-line .empty { color: var(--text-3); font-style: italic; }
+
+/* scrollbar for panels */
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 2px; }
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 20px 0;
+}
+
+/* Answer area */
+.answer-area {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* Responsive text */
+.text-muted { color: var(--text-2); font-size: 12px; margin-top: 6px; }
+.text-tiny { font-family: var(--mono); font-size: 9px; color: var(--text-3); margin-top: 6px; letter-spacing: 0.5px; }
+
+/* ── CONFIGURE FORM ── */
+.configure-block {
+  display: none;
+  margin-top: 16px;
+  background: linear-gradient(135deg, rgba(251,146,60,0.06) 0%, rgba(251,146,60,0.02) 100%);
+  border: 1px solid rgba(251,146,60,0.25);
+  border-radius: var(--radius);
+  padding: 18px;
+  animation: cardIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.configure-block.show { display: block; }
+.configure-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: var(--warn);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.configure-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+.configure-field {
+  margin-bottom: 12px;
+}
+.configure-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--warn);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.configure-field input {
+  width: 100%;
+  background: var(--s3);
+  border: 1px solid rgba(251,146,60,0.2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 9px 12px;
+  outline: none;
+  transition: all 0.15s;
+}
+.configure-field input:focus {
+  border-color: var(--warn);
+  background: rgba(251,146,60,0.05);
+  box-shadow: 0 0 0 3px rgba(251,146,60,0.1);
+}
+.configure-field .field-hint {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.btn-warn {
+  background: var(--warn);
+  color: #000;
+  box-shadow: 0 4px 14px rgba(251,146,60,0.3);
+}
+.btn-warn:hover {
+  background: #fca64a;
+  box-shadow: 0 6px 20px rgba(251,146,60,0.45);
+  transform: translateY(-1px);
+}
+.configure-success {
+  display: none;
+  padding: 10px 14px;
+  background: var(--green-dim);
+  border: 1px solid rgba(74,222,128,0.2);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 12px;
+}
+.configure-success.show { display: block; }
+
+/* ── EXEC MONITOR ── */
+.exec-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--s2);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+.exec-status-indicator {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.exec-status-indicator.running { background: var(--warn); animation: statusPulse 1s ease-in-out infinite; }
+.exec-status-indicator.success { background: var(--green); }
+.exec-status-indicator.error { background: var(--danger); }
+.exec-status-indicator.idle { background: var(--text-3); }
+.exec-status-text { font-family: var(--mono); font-size: 12px; color: var(--text); flex: 1; }
+.exec-duration { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.exec-timeline { display: flex; flex-direction: column; gap: 4px; }
+.exec-event {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-2);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+.exec-event:last-child { border: none; }
+.exec-event-t { color: var(--text-3); flex-shrink: 0; }
+.exec-event.ok .exec-event-msg { color: var(--green); }
+.exec-event.err .exec-event-msg { color: var(--danger); }
+.exec-event.inf .exec-event-msg { color: var(--text-2); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM11 11h2v2h-2zM9 9h2v2H9z"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-name">workflow<span>-auto</span></div>
+    </div>
+    <div class="logo-badge">v2.0</div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      n8n connecté
+    </div>
+  </div>
+</header>
+
+<!-- NAVIGATION -->
+<nav class="nav">
+  <button class="nav-tab active" id="tab-1" onclick="goTab(1)">
+    <span class="tab-num">1</span>CLARIFIER
+  </button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab locked" id="tab-2" onclick="goTab(2)">
+    <span class="tab-num">2</span>GÉNÉRER
+  </button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab" id="tab-3" onclick="goTab(3)">
+    <span class="tab-num">3</span>DÉBUGGER
+  </button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab" id="tab-4" onclick="goTab(4)">
+    <span class="tab-num">4</span>EXÉCUTER
+  </button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab" id="tab-5" onclick="goTab(5)">
+    <span class="tab-num">5</span>INTERFACE
+  </button>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="content">
+
+    <!-- PANEL 1 : CLARIFIER -->
+    <div class="panel active" id="panel-1">
+      <div class="panel-header">
+        <div class="panel-title">Décris ton workflow</div>
+        <div class="panel-sub">Claude va analyser ta demande et poser des questions si nécessaire.</div>
+      </div>
+
+      <div class="tpls">
+        <button class="tpl" onclick="useTpl('rss')">RSS → Telegram</button>
+        <button class="tpl" onclick="useTpl('webhook')">Webhook → Claude</button>
+        <button class="tpl" onclick="useTpl('schedule')">Schedule → Sheets</button>
+        <button class="tpl" onclick="useTpl('simap')">Veille SIMAP</button>
+        <button class="tpl" onclick="useTpl('tgemail')">Telegram → Email</button>
+        <button class="tpl" onclick="useTpl('form')">Form → Notif</button>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Description du workflow</label>
+        <textarea id="desc" placeholder="Ex: Un workflow qui surveille SIMAP.ch toutes les heures et m'envoie un Telegram quand un nouvel appel d'offres correspond à mes critères."></textarea>
+      </div>
+
+      <div class="clarify-box" id="clarify-box">
+        <div class="clarify-analysis" id="c-analysis"></div>
+        <div id="c-questions"></div>
+        <div id="c-suggestions" style="margin-top:10px"></div>
+        <div class="answer-area">
+          <div class="field">
+            <label class="field-label">Tes réponses</label>
+            <textarea id="answer" rows="3" placeholder="Réponds aux questions ci-dessus, ou laisse vide pour générer directement..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-clarify" onclick="doClarify()">ANALYSER →</button>
+        <button class="btn btn-primary" id="btn-generate" onclick="doGenerate()">GÉNÉRER LE WORKFLOW →</button>
+      </div>
+    </div>
+
+    <!-- PANEL 2 : RÉSULTAT GÉNÉRATION -->
+    <div class="panel" id="panel-2">
+
+      <div class="result-card card-success" id="gen-result">
+        <div class="card-label">
+          <div class="card-dot"></div>
+          WORKFLOW CRÉÉ ET ACTIF
+        </div>
+        <div class="kv-list">
+          <div class="kv-row">
+            <span class="kv-key">ID</span>
+            <span class="kv-val" id="g-id">—</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Nom</span>
+            <span class="kv-val" id="g-name">—</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Statut</span>
+            <span class="kv-val kv-active">actif + autodebug</span>
+          </div>
+        </div>
+        <div class="audit-block" id="audit-block">
+          <div id="audit-errors-wrap" style="display:none;margin-bottom:10px">
+            <div class="audit-section-label" style="color:var(--danger)">ERREURS CORRIGÉES</div>
+            <div id="audit-errors-list"></div>
+          </div>
+          <div id="audit-warnings-wrap" style="display:none">
+            <div class="audit-section-label" style="color:var(--warn)">À CONFIGURER MANUELLEMENT</div>
+            <div id="audit-warnings-list"></div>
+          </div>
+        </div>
+        <button class="open-btn open-btn-green" onclick="openWorkflow()">OUVRIR DANS N8N →</button>
+      </div>
+
+      <!-- CONFIGURE FORM -->
+      <div class="configure-block" id="configure-block">
+        <div class="configure-title">
+          <span>⚙</span> CONFIGURATION REQUISE
+        </div>
+        <div class="configure-sub">
+          Renseigne les valeurs manquantes — workflow-auto va les injecter automatiquement dans le workflow.
+        </div>
+        <div id="configure-fields"></div>
+        <button class="btn btn-warn btn-full" id="btn-configure" onclick="doConfigureWorkflow()" style="margin-top:4px">
+          INJECTER LA CONFIGURATION →
+        </button>
+        <div class="configure-success" id="configure-success">✓ Configuration injectée — workflow mis à jour et activé</div>
+      </div>
+
+      <div class="result-card card-error" id="gen-error">
+        <div class="card-label">ERREUR</div>
+        <div id="gen-error-msg" style="font-family:var(--mono);font-size:11px;color:var(--danger);line-height:1.7"></div>
+      </div>
+
+      <div class="debug-section">
+        <div class="section-title">SOUMETTRE UNE ERREUR</div>
+        <div class="field">
+          <label class="field-label">Message d'erreur n8n</label>
+          <textarea id="error-msg" rows="4" placeholder="Colle le message d'erreur depuis l'onglet Executions de n8n."></textarea>
+        </div>
+        <button class="btn btn-secondary btn-full" id="btn-debug" onclick="doDebug()">ANALYSER ET CORRIGER →</button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="resetAll()">← NOUVEAU WORKFLOW</button>
+      </div>
+    </div>
+
+    <!-- PANEL 3 : DÉBUGGER -->
+    <div class="panel" id="panel-3">
+
+      <div class="result-card card-debug" id="debug-result">
+        <div class="card-label">
+          <div class="card-dot"></div>
+          DIAGNOSTIC
+        </div>
+        <div class="diag-block" id="d-diag">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);letter-spacing:1.5px;margin:10px 0 6px;text-transform:uppercase">Correction appliquée</div>
+        <div class="fix-block" id="d-fix">—</div>
+        <button class="open-btn open-btn-purple" onclick="openWorkflow()">VOIR LE WORKFLOW CORRIGÉ →</button>
+      </div>
+
+      <div class="debug-section">
+        <div class="section-title">NOUVELLE CORRECTION</div>
+        <div class="field">
+          <label class="field-label">Erreur à corriger</label>
+          <textarea id="error-msg-2" rows="3" placeholder="Une autre erreur ?"></textarea>
+        </div>
+        <button class="btn btn-secondary btn-full" id="btn-debug-2" onclick="doDebug2()">CORRIGER À NOUVEAU →</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">DEBUG PAR ID</div>
+      <div class="debug-id-group">
+        <div class="field" style="margin-bottom:12px">
+          <label class="field-label">Workflow ID</label>
+          <input type="text" id="manual-workflow-id" placeholder="Ex: so6tNNOIHpGoP1sq" style="font-family:var(--mono);font-size:12px">
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label class="field-label">Erreur ou description du problème</label>
+          <textarea id="manual-error-msg" rows="3" placeholder="Colle l'erreur n8n, ou décris le problème après modification manuelle."></textarea>
+        </div>
+
+        <div class="debug-btn-grid">
+          <button class="btn btn-primary debug-btn-full" id="btn-audit-static" onclick="doAuditStatic()">ANALYSER ET CORRIGER →</button>
+          <button class="btn btn-ghost" id="btn-manual-debug" onclick="doManualDebug()">DEBUG AVEC ERREUR →</button>
+          <button class="btn btn-ghost" id="btn-trigger-run" onclick="doTriggerWorkflow()" style="justify-content:center">▶ DÉCLENCHER</button>
+          <button class="btn btn-secondary" id="btn-check-last" onclick="doCheckLast()">VÉRIFIER ERREUR →</button>
+          <button class="btn btn-ghost debug-btn-full" onclick="doTriggerThenCheck()">▶ DÉCLENCHER + VÉRIFIER AUTO →</button>
+        </div>
+        <div class="text-tiny">Audit statique = Claude corrige le JSON sans exécuter. Déclencher = webhook WORKFLOW-AUTO injecté requis.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goTab(2)">← RETOUR</button>
+        <button class="btn btn-ghost" onclick="resetAll()">NOUVEAU WORKFLOW</button>
+      </div>
+    </div>
+
+    <!-- PANEL 4 : EXÉCUTER -->
+    <div class="panel" id="panel-4">
+      <div class="panel-header">
+        <div class="panel-title">Exécuter un workflow</div>
+        <div class="panel-sub">Déclenche, monitore et corrige en temps réel depuis WORKFLOW-AUTO.</div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Workflow ID</label>
+        <input type="text" id="exec-workflow-id" placeholder="Ex: so6tNNOIHpGoP1sq" style="font-family:var(--mono);font-size:12px">
+      </div>
+
+      <div class="field">
+        <label class="field-label">Payload JSON (optionnel)</label>
+        <textarea id="exec-payload" rows="4" placeholder='{"key": "value"}' style="font-family:var(--mono);font-size:12px"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-exec-run" onclick="doExecRun()">▶ DÉCLENCHER LE WORKFLOW →</button>
+
+      <!-- Execution monitor -->
+      <div class="exec-monitor" id="exec-monitor" style="display:none;margin-top:20px">
+        <div class="exec-status-bar" id="exec-status-bar">
+          <div class="exec-status-indicator" id="exec-status-dot"></div>
+          <span class="exec-status-text" id="exec-status-text">En cours...</span>
+          <span class="exec-duration" id="exec-duration"></span>
+        </div>
+        <div class="exec-timeline" id="exec-timeline"></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-ghost" id="btn-exec-debug" onclick="doExecAutoDebug()" style="display:none">⚡ CORRIGER AUTOMATIQUEMENT →</button>
+          <button class="btn btn-ghost" onclick="openExecWorkflow()">OUVRIR DANS N8N →</button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goTab(3)">← RETOUR</button>
+        <button class="btn btn-ghost" onclick="resetAll()">NOUVEAU WORKFLOW</button>
+      </div>
+    </div>
+
+    <!-- PANEL 5 : INTERFACE -->
+    <div class="panel" id="panel-5">
+      <div class="panel-header">
+        <div class="panel-title">Générer une interface web</div>
+        <div class="panel-sub">Claude crée un formulaire HTML clé en main pour tes utilisateurs finaux.</div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Workflow ID cible</label>
+        <input type="text" id="ui-workflow-id" placeholder="Ex: so6tNNOIHpGoP1sq" style="font-family:var(--mono);font-size:12px">
+      </div>
+
+      <!-- Clarification UI -->
+      <div class="clarify-box show" id="ui-clarify-box" style="display:block">
+        <div class="configure-sub" style="margin-bottom:12px">
+          Réponds aux questions suivantes pour que Claude génère la meilleure interface possible.
+        </div>
+
+        <div class="field">
+          <label class="field-label">Qui sont les utilisateurs finaux ?</label>
+          <input type="text" id="ui-users" placeholder="Ex: Équipe RH interne, clients B2C, partenaires...">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Quels champs saisit l'utilisateur ?</label>
+          <textarea id="ui-inputs" rows="3" placeholder="Ex: Nom, Prénom, Email, Message, Département..."></textarea>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Qu'est-ce qui s'affiche après soumission ?</label>
+          <textarea id="ui-output" rows="2" placeholder="Ex: Message de confirmation, lien vers le résultat, tableau de données..."></textarea>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Style souhaité</label>
+          <div class="tpls" style="margin-bottom:0">
+            <button class="tpl" onclick="setUiStyle('minimal')">Minimal</button>
+            <button class="tpl" onclick="setUiStyle('pro')">Professionnel</button>
+            <button class="tpl" onclick="setUiStyle('dark')">Dark</button>
+            <button class="tpl" onclick="setUiStyle('colorful')">Coloré</button>
+            <button class="tpl" onclick="setUiStyle('mobile')">Mobile-first</button>
+          </div>
+          <input type="hidden" id="ui-style" value="minimal">
+        </div>
+
+        <div class="field">
+          <label class="field-label">Infos supplémentaires (optionnel)</label>
+          <textarea id="ui-extra" rows="2" placeholder="Logo, couleurs, nom de l'app, langue, conditions particulières..."></textarea>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-ui-generate" onclick="doGenerateUI()">
+        GÉNÉRER L'INTERFACE →
+      </button>
+
+      <!-- Result -->
+      <div id="ui-result" style="display:none;margin-top:16px">
+        <div class="result-card card-success show" style="margin-bottom:12px">
+          <div class="card-label"><div class="card-dot"></div>INTERFACE GÉNÉRÉE</div>
+          <div id="ui-result-info" style="font-size:12px;color:var(--text-2);line-height:1.7"></div>
+          <button class="open-btn open-btn-green" id="btn-ui-download" onclick="doDownloadUI()" style="margin-top:12px">
+            TÉLÉCHARGER LE HTML →
+          </button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goTab(4)">← RETOUR</button>
+        <button class="btn btn-ghost" onclick="resetAll()">NOUVEAU WORKFLOW</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Configuration</div>
+      <div class="config-item">
+        <span class="config-key">Modèle</span>
+        <span class="config-val">claude-sonnet-4-6</span>
+      </div>
+      <div class="config-item">
+        <span class="config-key">Temp.</span>
+        <span class="config-val">0 (déterministe)</span>
+      </div>
+      <div>
+        <div class="config-key" style="margin-bottom:6px;padding-top:6px">Webhook</div>
+        <div class="url-input-group">
+          <input type="text" id="webhook-url" value="YOUR_N8N_URL/webhook/generer-workflow">
+          <button class="url-ok-btn" onclick="log('inf','URL OK')">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Workflows n8n</div>
+      <div class="link-list">
+        <a href="YOUR_N8N_URL/workflow/YOUR_N8N_URL/workflow/R80Ph6CGo1L0bNNf?projectId=YOUR_PROJECT_ID" target="_blank" class="workflow-link">
+          META Generator <span class="workflow-link-arrow">→</span>
+        </a>
+        <a href="YOUR_N8N_URL/workflow/YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1" target="_blank" class="workflow-link">
+          WORKFLOW-AUTO Autodebug <span class="workflow-link-arrow">→</span>
+        </a>
+        <a href="YOUR_N8N_URL/workflow/YOUR_EXEC_DEBUG_WORKFLOW_ID?projectId=YOUR_PROJECT_ID" target="_blank" class="workflow-link">
+          Execute &amp; Debug <span class="workflow-link-arrow">→</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="log-wrap">
+      <div class="log-header">
+        <div class="log-title-text">JOURNAL</div>
+        <button class="log-clear" onclick="clearLog()">effacer</button>
+      </div>
+      <div class="log" id="log">
+        <div class="log-line"><span class="log-t">--:--:--</span><span class="empty">En attente...</span></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const TPLS = {
+  rss: "Un workflow qui surveille un flux RSS de LeMonde.fr toutes les heures, filtre les articles contenant 'intelligence artificielle', et envoie un résumé Telegram avec le titre et le lien.",
+  webhook: "Un webhook POST qui reçoit une description de tâche, l'envoie à Claude pour obtenir une analyse et des sous-tâches, puis retourne le résultat en JSON.",
+  schedule: "Un workflow qui s'exécute chaque lundi à 9h, récupère les données de ventes depuis une API, et les enregistre dans Google Sheets avec un horodatage.",
+  simap: "Un workflow qui surveille SIMAP.ch toutes les heures et m'envoie un Telegram quand un nouvel appel d'offres correspond à mes critères.",
+  tgemail: "Un Telegram Trigger qui reçoit un message, extrait le texte et l'expéditeur, et envoie un email formaté à arnaudguedou@gmail.com.",
+  form: "Un webhook POST qui reçoit nom, email et message, valide les champs, et envoie une notification Telegram avec le résumé."
+};
+
+const state = {
+  phase: 'clarify',
+  description: '',
+  conversation: [],
+  workflowId: null,
+  workflowUrl: 'YOUR_N8N_URL/workflow/YOUR_N8N_URL/workflow/R80Ph6CGo1L0bNNf?projectId=YOUR_PROJECT_ID',
+  webhookPath: null
+};
+
+function useTpl(k) { document.getElementById('desc').value = TPLS[k] || ''; }
+
+
+// HTML escaping helper to prevent XSS
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function clearLog() {
+  const el = document.getElementById('log');
+  el.innerHTML = '<div class="log-line"><span class="log-t">--:--:--</span><span class="empty">Journal effacé</span></div>';
+}
+
+function log(type, msg) {
+  const el = document.getElementById('log');
+  const emp = el.querySelector('.empty');
+  if (emp) emp.closest('.log-line').remove();
+  const t = new Date().toTimeString().slice(0, 8);
+  const d = document.createElement('div');
+  d.className = 'log-line';
+  d.innerHTML = `<span class="log-t">${t}</span><span class="${type}">${esc(msg)}</span>`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+function goTab(n) {
+  const t = document.getElementById('tab-' + n);
+  if (!t || t.classList.contains('locked')) return;
+  [1, 2, 3, 4, 5].forEach(i => {
+    const panel = document.getElementById('panel-' + i);
+    if (panel) panel.classList.toggle('active', i === n);
+    const tab = document.getElementById('tab-' + i);
+    if (!tab) return;
+    tab.classList.remove('active', 'done');
+    if (i < n) tab.classList.add('done');
+    else if (i === n) tab.classList.add('active');
+  });
+}
+
+function unlockTab(n) { document.getElementById('tab-' + n).classList.remove('locked'); }
+
+function resetAll() {
+  state.conversation = []; state.workflowId = null; state.webhookPath = null;
+  ['clarify-box', 'gen-result', 'gen-error', 'debug-result'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+  document.getElementById('desc').value = '';
+  const genBtn = document.getElementById('btn-generate');
+  genBtn.textContent = 'GÉNÉRER LE WORKFLOW →';
+  genBtn.style.animation = '';
+  document.getElementById('answer').value = '';
+  document.getElementById('error-msg').value = '';
+  document.getElementById('error-msg-2').value = '';
+  ['tab-2'].forEach(id => document.getElementById(id).classList.add('locked'));
+  goTab(1);
+  log('inf', 'Réinitialisé');
+}
+
+async function callApi(payload, btnId) {
+  const btn = btnId ? document.getElementById(btnId) : null;
+  const url = document.getElementById('webhook-url').value.trim();
+  if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+  try {
+    const fp = fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const tp = new Promise((_, rej) => setTimeout(() => rej(new Error('AbortError')), 120000));
+    const res = await Promise.race([fp, tp]);
+    const raw = await res.text();
+    log('inf', `HTTP ${res.status} — ${raw.slice(0, 60)}${raw.length > 60 ? '...' : ''}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${raw.slice(0, 100)}`);
+    if (!raw.trim()) throw new Error('Réponse vide — workflow inactif dans n8n ?');
+    return JSON.parse(raw);
+  } catch (e) {
+    if (e.message === 'AbortError') throw new Error('Timeout 120s — vérifier n8n');
+    throw e;
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
+  }
+}
+
+async function doClarify() {
+  const desc = document.getElementById('desc').value.trim();
+  if (!desc) { log('err', 'Description requise'); return; }
+
+  // Premier appel : init conversation
+  if (state.conversation.length === 0) {
+    state.description = desc;
+    state.conversation = [{ role: 'user', content: desc }];
+  } else {
+    // Tours suivants : ajoute la réponse de l'utilisateur
+    const answer = document.getElementById('answer').value.trim();
+    if (answer) {
+      state.conversation.push({ role: 'user', content: answer });
+      document.getElementById('answer').value = '';
+    } else {
+      state.conversation.push({ role: 'user', content: 'Continue avec plus de précisions si nécessaire.' });
+    }
+  }
+
+  log('inf', `Tour ${Math.ceil(state.conversation.length / 2)} — analyse en cours...`);
+  try {
+    const data = await callApi({ phase: 'clarify', description: state.description || desc, conversation: state.conversation }, 'btn-clarify');
+    state.conversation.push({ role: 'assistant', content: JSON.stringify(data) });
+    const box = document.getElementById('clarify-box');
+    box.classList.add('show');
+    document.getElementById('c-analysis').textContent = data.analysis || '';
+    const qEl = document.getElementById('c-questions');
+    qEl.innerHTML = '';
+    (data.questions || []).forEach((q, i) => {
+      qEl.innerHTML += `<div class="clarify-q"><span class="q-badge">Q${i + 1}</span><span class="q-text">${esc(q)}</span></div>`;
+    });
+    const sEl = document.getElementById('c-suggestions');
+    sEl.innerHTML = '';
+    (data.suggestions || []).forEach(s => {
+      sEl.innerHTML += `<div class="suggestion">${esc(s)}</div>`;
+    });
+
+    if (data.ready_to_generate) {
+      log('ok', 'Analyse complète — tu peux générer !');
+      // Highlight generate button
+      const btn = document.getElementById('btn-generate');
+      btn.textContent = '✓ GÉNÉRER LE WORKFLOW →';
+      btn.style.animation = 'logoGlow 1.5s ease-in-out infinite';
+    } else {
+      log('ok', `${(data.questions || []).length} question(s) — réponds puis clique ANALYSER`);
+    }
+  } catch (e) { log('err', e.message); }
+}
+
+async function doGenerate() {
+  const desc = document.getElementById('desc').value.trim();
+  if (!desc) { log('err', 'Description requise'); return; }
+  const answer = document.getElementById('answer').value.trim();
+  if (!state.description) state.description = desc;
+  if (state.conversation.length === 0) {
+    state.conversation = [{ role: 'user', content: 'Génère un workflow n8n pour : ' + desc }];
+  } else {
+    // Ajoute la réponse finale si pas déjà pushée par doClarify
+    if (answer) state.conversation.push({ role: 'user', content: answer });
+    else state.conversation.push({ role: 'user', content: 'Génère le workflow maintenant en utilisant toutes les informations fournies.' });
+  }
+  log('inf', 'Génération + audit en cours...');
+  try {
+    const data = await callApi({ phase: 'generate', description: desc, conversation: state.conversation }, 'btn-generate');
+    if (data.success && data.workflowId) {
+      state.workflowId = data.workflowId;
+      state.workflowUrl = data.url || state.workflowUrl;
+      state.webhookPath = data.webhookPath || null;
+      state.realWebhookPath = data.realWebhookPath || null;
+      // Update UI tab webhook URL to use real path
+      if (data.realWebhookPath) {
+        const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+        document.getElementById('ui-inputs') && (window._uiWebhookUrl = baseUrl + '/webhook/' + data.realWebhookPath);
+      }
+      document.getElementById('g-id').textContent = data.workflowId;
+      document.getElementById('g-name').textContent = data.name || '—';
+      document.getElementById('gen-result').classList.add('show');
+      document.getElementById('gen-error').classList.remove('show');
+      log('ok', `Workflow créé et activé ! ID: ${data.workflowId}`);
+
+      const errors = data.auditErrors || [];
+      const warnings = data.auditWarnings || [];
+      const auditBlock = document.getElementById('audit-block');
+
+      if (errors.length > 0 || warnings.length > 0) {
+        auditBlock.style.display = 'block';
+        if (errors.length > 0) {
+          document.getElementById('audit-errors-wrap').style.display = 'block';
+          document.getElementById('audit-errors-list').innerHTML = errors.map(e =>
+            `<div class="audit-item error">${e}</div>`
+          ).join('');
+          errors.forEach(e => log('err', `Audit: ${e}`));
+        }
+        if (warnings.length > 0) {
+          document.getElementById('audit-warnings-wrap').style.display = 'block';
+          document.getElementById('audit-warnings-list').innerHTML = warnings.map(w =>
+            `<div class="audit-item warn">${w}</div>`
+          ).join('');
+          warnings.forEach(w => log('wrn', `Audit: ${w}`));
+        }
+      } else {
+        auditBlock.style.display = 'none';
+        log('ok', 'Audit OK — aucune erreur détectée');
+      }
+
+      // Build configure form from warnings
+      buildConfigureForm(warnings);
+
+      unlockTab(2); unlockTab(3);
+      // Pre-fill exec and ui tabs
+      document.getElementById('exec-workflow-id').value = data.workflowId;
+      document.getElementById('ui-workflow-id').value = data.workflowId;
+
+      // Pre-fill test payload
+      if (data.testPayload && Object.keys(data.testPayload).length > 0) {
+        document.getElementById('exec-payload').value = JSON.stringify(data.testPayload, null, 2);
+        log('ok', 'Payload de test généré automatiquement');
+      }
+
+      // Pre-fill UI spec
+      if (data.uiSpec) {
+        state.uiSpec = data.uiSpec;
+        if (data.uiSpec.needed && data.uiSpec.fields && data.uiSpec.fields.length > 0) {
+          const inputsStr = data.uiSpec.fields.map(f => f.label).join(', ');
+          document.getElementById('ui-inputs').value = inputsStr;
+          document.getElementById('ui-users').value = 'utilisateurs du workflow';
+          document.getElementById('ui-output').value = 'résultat du traitement';
+          log('ok', 'Interface UI détectée — ' + data.uiSpec.fields.length + ' champ(s) identifié(s)');
+          // Auto-generate UI draft
+          setTimeout(() => autoGenerateUIDraft(data.workflowId, data.uiSpec), 500);
+        }
+      }
+
+      goTab(2);
+    } else {
+      document.getElementById('gen-error-msg').textContent = data.error || 'Erreur inconnue';
+      document.getElementById('gen-error').classList.add('show');
+      document.getElementById('gen-result').classList.remove('show');
+      log('err', data.error || 'Génération échouée');
+      unlockTab(2); goTab(2);
+    }
+  } catch (e) { log('err', e.message); }
+}
+
+async function doDebug() {
+  const err = document.getElementById('error-msg').value.trim();
+  if (!err) { log('err', "Message d'erreur requis"); return; }
+  if (!state.workflowId) { log('err', 'Aucun workflow — générez dabord'); return; }
+  log('inf', "Analyse de l'erreur...");
+  try {
+    const data = await callApi({ phase: 'debug', workflowId: state.workflowId, error: err }, 'btn-debug');
+    if (data.success) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      document.getElementById('debug-result').classList.add('show');
+      log('ok', 'Workflow corrigé et mis à jour dans n8n');
+      unlockTab(3); goTab(3);
+    } else { throw new Error(data.error || 'Debug échoué'); }
+  } catch (e) { log('err', e.message); }
+}
+
+async function doDebug2() {
+  const err = document.getElementById('error-msg-2').value.trim();
+  if (!err) { log('err', "Message d'erreur requis"); return; }
+  if (!state.workflowId) { log('err', 'Aucun workflow'); return; }
+  log('inf', 'Nouvelle correction...');
+  try {
+    const data = await callApi({ phase: 'debug', workflowId: state.workflowId, error: err }, 'btn-debug-2');
+    if (data.success) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      log('ok', 'Correction appliquée');
+    } else { throw new Error(data.error || 'Debug échoué'); }
+  } catch (e) { log('err', e.message); }
+}
+
+async function doAuditStatic() {
+  const wfId = document.getElementById('manual-workflow-id').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  state.workflowId = wfId;
+  state.workflowUrl = 'YOUR_N8N_URL/workflow/' + wfId;
+  log('inf', `Audit statique du workflow ${wfId}...`);
+  const btn = document.getElementById('btn-audit-static');
+  btn.disabled = true; btn.classList.add('loading');
+  try {
+    const data = await callApi({
+      phase: 'debug',
+      workflowId: wfId,
+      error: 'Effectue un audit complet du workflow : credentials manquants, URLs non configurées, connexions incorrectes, nodes mal configurés. Corrige tout ce qui peut etre corrige automatiquement.'
+    }, 'btn-audit-static');
+    if (data.success) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      document.getElementById('debug-result').classList.add('show');
+      log('ok', 'Audit terminé — corrections appliquées');
+      log('ok', data.fix || '');
+      unlockTab(3); goTab(3);
+    } else { throw new Error(data.error || 'Audit échoué'); }
+  } catch (e) { log('err', e.message); }
+  finally { btn.disabled = false; btn.classList.remove('loading'); }
+}
+
+async function doManualDebug() {
+  const wfId = document.getElementById('manual-workflow-id').value.trim();
+  const err = document.getElementById('manual-error-msg').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  if (!err) { log('err', 'Erreur ou description requise'); return; }
+  state.workflowId = wfId;
+  state.workflowUrl = 'YOUR_N8N_URL/workflow/' + wfId;
+  log('inf', `Debug manuel — workflow ${wfId}`);
+  try {
+    const data = await callApi({ phase: 'debug', workflowId: wfId, error: err }, 'btn-manual-debug');
+    if (data.success) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      document.getElementById('debug-result').classList.add('show');
+      log('ok', 'Workflow corrigé et réactivé');
+      log('ok', `Diagnostic: ${data.diagnosis}`);
+    } else { throw new Error(data.error || 'Debug échoué'); }
+  } catch (e) { log('err', e.message); }
+}
+
+async function doTriggerWorkflow() {
+  const wfId = document.getElementById('manual-workflow-id').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+  const webhookPath = state.webhookPath || ('run-' + wfId);
+  log('inf', `Déclenchement via /webhook/${webhookPath}...`);
+  try {
+    const res = await fetch(`${baseUrl}/webhook/${webhookPath}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'workflow-auto' })
+    });
+    log('ok', `Déclenché HTTP ${res.status}`);
+    return true;
+  } catch (e) { log('err', `Déclenchement échoué: ${e.message}`); return false; }
+}
+
+async function doCheckLast() {
+  const wfId = document.getElementById('manual-workflow-id').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  state.workflowId = wfId;
+  state.workflowUrl = 'YOUR_N8N_URL/workflow/' + wfId;
+  const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+  const btn = document.getElementById('btn-check-last');
+  btn.disabled = true; btn.classList.add('loading');
+  try {
+    log('inf', 'Lecture de la dernière exécution...');
+    const res = await fetch(`${baseUrl}/webhook/get-last-error?workflowId=${wfId}`);
+    const raw = await res.text();
+    log('inf', `HTTP ${res.status} — ${raw.slice(0, 60)}`);
+    if (!raw.trim()) throw new Error('Réponse vide — WORKFLOW-AUTO Execute and Debug actif ?');
+    const data = JSON.parse(raw);
+    if (data.status === 'no_execution') { log('wrn', 'Aucune exécution trouvée — déclenche dabord'); return; }
+    if (data.status === 'running') { log('wrn', 'Exécution en cours — réessaie dans quelques secondes'); return; }
+    if (data.status === 'fixed' && data.hasError) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      document.getElementById('debug-result').classList.add('show');
+      log('err', 'Erreur détectée');
+      log('ok', `Correction: ${data.fix}`);
+      return;
+    }
+    if (!data.hasError) { log('ok', `Statut: ${data.status} — dernière exécution sans erreur`); }
+  } catch (e) { log('err', e.message); }
+  finally { btn.disabled = false; btn.classList.remove('loading'); }
+}
+
+async function doTriggerThenCheck() {
+  const wfId = document.getElementById('manual-workflow-id').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  state.workflowId = wfId;
+  state.workflowUrl = 'YOUR_N8N_URL/workflow/' + wfId;
+  const triggered = await doTriggerWorkflow();
+  if (!triggered) return;
+  log('inf', 'Attente exécution (8s)...');
+  await new Promise(r => setTimeout(r, 8000));
+  await doCheckLast();
+}
+
+function openWorkflow() { if (state.workflowUrl) window.open(state.workflowUrl, '_blank'); }
+
+// ── PANEL 4 : EXÉCUTER ──
+
+let execPollInterval = null;
+let execStartTime = null;
+
+function execLog(type, msg) {
+  const tl = document.getElementById('exec-timeline');
+  const t = new Date().toTimeString().slice(0, 8);
+  const div = document.createElement('div');
+  div.className = 'exec-event ' + type;
+  div.innerHTML = '<span class="exec-event-t">' + t + '</span><span class="exec-event-msg">' + msg + '</span>';
+  tl.appendChild(div);
+  tl.scrollTop = tl.scrollHeight;
+}
+
+function setExecStatus(status, text) {
+  const dot = document.getElementById('exec-status-dot');
+  const txt = document.getElementById('exec-status-text');
+  dot.className = 'exec-status-indicator ' + status;
+  txt.textContent = text;
+  if (execStartTime && status !== 'running') {
+    const dur = ((Date.now() - execStartTime) / 1000).toFixed(1);
+    document.getElementById('exec-duration').textContent = dur + 's';
+  }
+}
+
+function openExecWorkflow() {
+  const id = document.getElementById('exec-workflow-id').value.trim();
+  if (id) window.open('YOUR_N8N_URL/workflow/' + id, '_blank');
+}
+
+async function doExecRun() {
+  const wfId = document.getElementById('exec-workflow-id').value.trim();
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+
+  let payload = {};
+  const rawPayload = document.getElementById('exec-payload').value.trim();
+  if (rawPayload) {
+    try { payload = JSON.parse(rawPayload); }
+    catch(e) { log('err', 'Payload JSON invalide'); return; }
+  }
+
+  state.workflowId = wfId;
+  state.workflowUrl = 'YOUR_N8N_URL/workflow/' + wfId;
+
+  const monitor = document.getElementById('exec-monitor');
+  monitor.style.display = 'block';
+  document.getElementById('exec-timeline').innerHTML = '';
+  document.getElementById('exec-duration').textContent = '';
+  document.getElementById('btn-exec-debug').style.display = 'none';
+
+  setExecStatus('running', 'Déclenchement...');
+  execStartTime = Date.now();
+
+  const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+  const btn = document.getElementById('btn-exec-run');
+  btn.disabled = true; btn.classList.add('loading');
+
+  try {
+    // Use real webhook if known, fallback to run trigger
+    const webhookEndpoint = state.realWebhookPath
+      ? baseUrl + '/webhook/' + state.realWebhookPath
+      : baseUrl + '/webhook/run-' + wfId;
+    
+    const res = await fetch(webhookEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    execLog('ok', 'Déclenché — HTTP ' + res.status);
+    setExecStatus('running', 'Exécution en cours...');
+    log('inf', 'Workflow ' + wfId + ' déclenché');
+
+    // Poll execution status
+    if (execPollInterval) clearInterval(execPollInterval);
+    let polls = 0;
+    execPollInterval = setInterval(async () => {
+      polls++;
+      if (polls > 20) {
+        clearInterval(execPollInterval);
+        setExecStatus('idle', 'Timeout — vérifier dans n8n');
+        execLog('inf', 'Polling arrêté après 60s');
+        btn.disabled = false; btn.classList.remove('loading');
+        return;
+      }
+      try {
+        const chkRes = await fetch(baseUrl + '/webhook/get-last-error?workflowId=' + wfId);
+        const chkRaw = await chkRes.text();
+        if (!chkRaw.trim()) return;
+        const chk = JSON.parse(chkRaw);
+        if (chk.status === 'running') { execLog('inf', 'Toujours en cours...'); return; }
+        if (chk.status === 'no_execution') return;
+        clearInterval(execPollInterval);
+        btn.disabled = false; btn.classList.remove('loading');
+        if (chk.hasError) {
+          setExecStatus('error', 'Erreur détectée');
+          execLog('err', chk.diagnosis || 'Erreur lors de l exécution');
+          document.getElementById('btn-exec-debug').style.display = 'flex';
+          log('err', 'Workflow ' + wfId + ' — erreur détectée');
+        } else {
+          setExecStatus('success', 'Exécution réussie');
+          execLog('ok', 'Terminé avec succès — statut: ' + chk.status);
+          log('ok', 'Workflow ' + wfId + ' — exécution OK');
+        }
+      } catch(e) { execLog('inf', 'Polling...'); }
+    }, 3000);
+
+  } catch(e) {
+    setExecStatus('error', 'Déclenchement échoué');
+    execLog('err', e.message);
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+async function doExecAutoDebug() {
+  const wfId = document.getElementById('exec-workflow-id').value.trim();
+  if (!wfId) return;
+  log('inf', 'Lancement correction automatique...');
+  document.getElementById('btn-exec-debug').disabled = true;
+  try {
+    const data = await callApi({
+      phase: 'debug',
+      workflowId: wfId,
+      error: 'Corriger l erreur de la derniere execution automatiquement.'
+    }, null);
+    if (data.success) {
+      setExecStatus('success', 'Corrigé et réactivé');
+      execLog('ok', 'Correction appliquée: ' + (data.fix || ''));
+      log('ok', 'Auto-correction réussie');
+      document.getElementById('btn-exec-debug').style.display = 'none';
+    }
+  } catch(e) { log('err', e.message); }
+  document.getElementById('btn-exec-debug').disabled = false;
+}
+
+// ── PANEL 5 : INTERFACE ──
+
+let uiStyle = 'minimal';
+let generatedUIHtml = '';
+
+// ── AUTO UI DRAFT ──
+
+async function autoGenerateUIDraft(wfId, uiSpec) {
+  if (!uiSpec || !uiSpec.needed) return;
+  log('inf', 'Génération du draft UI automatique...');
+
+  const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+  const webhookUrl = baseUrl + '/webhook/' + (state.webhookPath || ('run-' + wfId));
+
+  // Build draft HTML from uiSpec
+  const draft = buildDraftFromSpec(wfId, webhookUrl, uiSpec);
+  generatedUIHtml = draft;
+
+  // Show in INTERFACE tab
+  document.getElementById('ui-workflow-id').value = wfId;
+  document.getElementById('ui-result').style.display = 'block';
+  document.getElementById('ui-result-info').innerHTML =
+    '<strong>Draft UI généré automatiquement</strong><br>' +
+    'Champs détectés : ' + uiSpec.fields.map(f =>
+      '<code style="font-family:var(--mono);font-size:10px;background:var(--s3);padding:1px 4px;border-radius:3px">' + f.label + '</code>'
+    ).join(' ') + '<br>' +
+    '<span style="color:var(--warn);font-size:11px">← Modifie les champs ci-dessus et clique GÉNÉRER pour affiner</span>';
+  log('ok', 'Draft UI prêt — va dans INTERFACE pour personnaliser et télécharger');
+}
+
+function buildDraftFromSpec(wfId, webhookUrl, uiSpec) {
+  const fields = uiSpec.fields || [];
+  const hasFile = fields.some(f => f.type === 'file');
+  const title = uiSpec.title || 'Interface';
+  const description = uiSpec.description || '';
+
+  const fieldHtml = fields.map(f => {
+    if (f.type === 'file') return '<div class="field"><label>' + f.label + '</label><input type="file" name="' + f.name + '" accept=".xlsx,.xls,.csv,.pdf,.txt"></div>';
+    if (f.type === 'textarea') return '<div class="field"><label>' + f.label + '</label><textarea name="' + f.name + '" rows="4" placeholder="' + (f.placeholder || f.label) + '..."></textarea></div>';
+    if (f.type === 'email') return '<div class="field"><label>' + f.label + '</label><input type="email" name="' + f.name + '" placeholder="' + (f.placeholder || 'email@exemple.com') + '"></div>';
+    return '<div class="field"><label>' + f.label + '</label><input type="text" name="' + f.name + '" placeholder="' + (f.placeholder || f.label) + '..."></div>';
+  }).join('');
+
+  const submitCode = hasFile
+    ? "const fd = new FormData(form); const res = await fetch('" + webhookUrl + "', {method:'POST',body:fd});"
+    : "const d={}; new FormData(form).forEach((v,k)=>d[k]=v); const res = await fetch('" + webhookUrl + "', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});";
+
+  const parts = [
+    '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
+    '<title>' + title + '</title>',
+    '<style>',
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    'body{font-family:system-ui,sans-serif;background:#f8f9fa;color:#111;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}',
+    '.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:32px;width:100%;max-width:520px;box-shadow:0 4px 24px rgba(0,0,0,0.08)}',
+    'h1{font-size:1.4rem;font-weight:700;margin-bottom:8px}',
+    '.desc{font-size:13px;color:#666;margin-bottom:24px}',
+    '.field{margin-bottom:16px}',
+    'label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#374151}',
+    'input,textarea{width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;color:#111;outline:none;transition:border-color .15s;font-family:inherit}',
+    'input:focus,textarea:focus{border-color:#a855f7;box-shadow:0 0 0 3px rgba(168,85,247,0.1)}',
+    'input[type=file]{padding:8px;cursor:pointer}',
+    'button{width:100%;padding:13px;background:#a855f7;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;transition:all .15s}',
+    'button:hover{background:#9333ea;transform:translateY(-1px)}',
+    'button:disabled{opacity:0.5;cursor:not-allowed;transform:none}',
+    '.loader{display:none;text-align:center;padding:16px;color:#666;font-size:14px}',
+    '.result{margin-top:20px;padding:16px;border-radius:8px;display:none;font-size:13px;line-height:1.7}',
+    '.result.ok{background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);color:#166534}',
+    '.result.err{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:#991b1b}',
+    'a{color:#a855f7;font-weight:600}',
+    'pre{font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}',
+    '</style></head><body>',
+    '<div class="card">',
+    '<h1>' + title + '</h1>',
+    description ? '<div class="desc">' + description + '</div>' : '',
+    '<form id="f">' + fieldHtml + '<button type="submit" id="btn">ENVOYER</button></form>',
+    '<div class="loader" id="loader">⏳ Traitement en cours...</div>',
+    '<div class="result" id="result"></div>',
+    '</div>',
+    '<scr' + 'ipt>',
+    'document.getElementById("f").onsubmit=async(e)=>{',
+    'e.preventDefault();',
+    'const form=e.target,btn=document.getElementById("btn"),loader=document.getElementById("loader"),result=document.getElementById("result");',
+    'btn.disabled=true;loader.style.display="block";result.style.display="none";',
+    'try{',
+    submitCode,
+    'const json=await res.json();',
+    'result.className="result ok";',
+    'if(json.file&&json.file.downloadLink){',
+    'result.innerHTML="<strong>✓ Fichier prêt !</strong><br><a href=\""+json.file.downloadLink+"\" target=\"_blank\">📥 Télécharger le fichier</a>";',
+    '}else if(json.message){',
+    'result.innerHTML="<strong>✓ Succès</strong><br>"+json.message;',
+    '}else{',
+    'result.innerHTML="<strong>✓ Résultat</strong><br><pre>"+JSON.stringify(json,null,2)+"</pre>";',
+    '}',
+    '}catch(err){result.className="result err";result.innerHTML="<strong>✗ Erreur</strong><br>"+err.message;}',
+    'btn.disabled=false;loader.style.display="none";result.style.display="block";',
+    '};',
+    '</scr' + 'ipt></body></html>'
+  ].filter(Boolean);
+
+  return parts.join('');
+}
+
+function setUiStyle(s) {
+  uiStyle = s;
+  document.getElementById('ui-style').value = s;
+  document.querySelectorAll('#panel-5 .tpl').forEach(b => {
+    b.style.borderColor = '';
+    b.style.color = '';
+  });
+  event.target.style.borderColor = 'rgba(168,85,247,0.6)';
+  event.target.style.color = 'var(--accent)';
+}
+
+async function doGenerateUI() {
+  const wfId = document.getElementById('ui-workflow-id').value.trim();
+  const users = document.getElementById('ui-users').value.trim();
+  const inputs = document.getElementById('ui-inputs').value.trim();
+  const output = document.getElementById('ui-output').value.trim();
+  const extra = document.getElementById('ui-extra').value.trim();
+
+  if (!wfId) { log('err', 'Workflow ID requis'); return; }
+  if (!inputs) { log('err', 'Décris les champs du formulaire'); return; }
+
+  const btn = document.getElementById('btn-ui-generate');
+  btn.disabled = true; btn.classList.add('loading');
+  log('inf', 'Génération de l interface...');
+
+  const baseUrl = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+  const webhookUrl = baseUrl + '/webhook/excel-modifier';
+
+  try {
+    const res = await fetch(document.getElementById('webhook-url').value.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phase: 'ui',
+        workflowId: wfId,
+        webhookUrl: webhookUrl,
+        users: users || 'grand public',
+        inputs: inputs,
+        output: output || 'message de confirmation',
+        style: uiStyle,
+        extra: extra
+      })
+    });
+
+    const raw = await res.text();
+    if (!raw.trim()) throw new Error('Réponse vide');
+
+    const data = JSON.parse(raw);
+    if (data.success && data.html) {
+      generatedUIHtml = data.html;
+      log('ok', 'Interface générée par Claude');
+    } else {
+      throw new Error('HTML non reçu');
+    }
+  } catch(e) {
+    log('wrn', 'Fallback template local: ' + e.message);
+    const hasFile = /fichier|file|excel|pdf|upload/i.test(inputs);
+    generatedUIHtml = generateBasicUI(wfId, webhookUrl, inputs, output, uiStyle, hasFile);
+  }
+
+  document.getElementById('ui-result').style.display = 'block';
+  document.getElementById('ui-result-info').innerHTML =
+    'Interface pour <strong>' + wfId + '</strong> — ' +
+    'Webhook : <code style="font-family:var(--mono);font-size:10px;background:var(--s3);padding:1px 4px;border-radius:3px">' + webhookUrl + '</code>';
+  log('ok', 'Interface prête — clique TÉLÉCHARGER');
+
+  btn.disabled = false; btn.classList.remove('loading');
+}
+
+
+function generateBasicUI(wfId, webhookUrl, inputs, output, style, hasFile) {
+  const fields = inputs.split(',').map(f => f.trim()).filter(Boolean);
+  const isDark = style === 'dark';
+  const accent = '#a855f7';
+
+  const fieldHtml = fields.map(f => {
+    const isFile = /fichier|file|excel|pdf|upload/i.test(f);
+    const isArea = /instruction|description|message|texte|commentaire/i.test(f);
+    const id = f.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (isFile) return '<div class="field"><label>' + f + '</label><input type="file" name="' + id + '" accept=".xlsx,.xls,.csv,.pdf"></div>';
+    if (isArea) return '<div class="field"><label>' + f + '</label><textarea name="' + id + '" rows="4" placeholder="' + f + '..."></textarea></div>';
+    return '<div class="field"><label>' + f + '</label><input type="text" name="' + id + '" placeholder="' + f + '..."></div>';
+  }).join('');
+
+  const submitScript = hasFile
+    ? "const fd = new FormData(form); const res = await fetch('" + webhookUrl + "', {method:'POST',body:fd});"
+    : "const d={}; new FormData(form).forEach((v,k)=>d[k]=v); const res = await fetch('" + webhookUrl + "', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});";
+
+  const parts = [
+    '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
+    '<title>Interface — Workflow ' + wfId + '</title>',
+    '<style>',
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    'body{font-family:system-ui,sans-serif;background:' + (isDark?'#0f0f13':'#f8f9fa') + ';color:' + (isDark?'#fff':'#111') + ';min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}',
+    '.card{background:' + (isDark?'#1e1e2e':'#fff') + ';border:1px solid ' + (isDark?'rgba(255,255,255,0.1)':'#e5e7eb') + ';border-radius:16px;padding:32px;width:100%;max-width:520px;box-shadow:0 4px 24px rgba(0,0,0,0.1)}',
+    'h1{font-size:1.4rem;font-weight:700;margin-bottom:24px;text-align:center}',
+    '.field{margin-bottom:16px}',
+    'label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;opacity:0.7}',
+    'input,textarea{width:100%;padding:10px 14px;border:1px solid ' + (isDark?'rgba(255,255,255,0.15)':'#e5e7eb') + ';border-radius:8px;font-size:14px;background:' + (isDark?'#0f0f13':'#f8f9fa') + ';color:' + (isDark?'#fff':'#111') + ';outline:none}',
+    'input[type=file]{padding:8px}',
+    'button{width:100%;padding:12px;background:' + accent + ';color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}',
+    'button:disabled{opacity:0.5;cursor:not-allowed}',
+    '.loader{display:none;text-align:center;padding:16px;opacity:0.6;font-size:14px}',
+    '.result{margin-top:20px;padding:16px;border-radius:8px;display:none;font-size:13px;line-height:1.6}',
+    '.result.ok{background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3)}',
+    '.result.err{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3)}',
+    'a{color:' + accent + '}',
+    '</style></head><body>',
+    '<div class="card">',
+    '<h1>Traitement</h1>',
+    '<form id="f">' + fieldHtml + '<button type="submit" id="btn">ENVOYER</button></form>',
+    '<div class="loader" id="loader">Traitement en cours...</div>',
+    '<div class="result" id="result"></div>',
+    '</div>',
+    '<scr'+'ipt>',
+    'document.getElementById("f").onsubmit=async(e)=>{',
+    'e.preventDefault();',
+    'const form=e.target,btn=document.getElementById("btn"),loader=document.getElementById("loader"),result=document.getElementById("result");',
+    'btn.disabled=true;loader.style.display="block";result.style.display="none";',
+    'try{',
+    submitScript,
+    'const json=await res.json();',
+    'result.className="result ok";',
+    'result.innerHTML=json.file?"<strong>Fichier prêt !</strong><br><a href=\""+json.file.downloadLink+"\" target=\"_blank\">Télécharger le fichier</a>":"<pre style=\"font-size:12px\">"+JSON.stringify(json,null,2)+"</pre>";',
+    '}catch(err){result.className="result err";result.innerHTML="Erreur : "+err.message;}',
+    'btn.disabled=false;loader.style.display="none";result.style.display="block";',
+    '};',
+    '</sc'+'ript></body></html>'
+  ];
+
+  return parts.join('');
+}
+
+function doDownloadUI() {
+  if (!generatedUIHtml) { log('err', 'Aucune interface générée'); return; }
+  const wfId = document.getElementById('ui-workflow-id').value.trim();
+  const blob = new Blob([generatedUIHtml], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'interface-' + (wfId || 'workflow') + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  log('ok', 'Interface téléchargée');
+}
+
+// ── CONFIGURE WORKFLOW ──
+
+// Known placeholders → human label + hint
+const PLACEHOLDER_MAP = {
+  'SPREADSHEET_ID': { label: 'Google Sheets ID', hint: 'Ex: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms' },
+  'SPREADSHEET_ID_SOURCE': { label: 'Google Sheets ID (source)', hint: 'Copie l\'ID depuis l\'URL de ton Google Sheet' },
+  'SPREADSHEET_ID_DESTINATION': { label: 'Google Sheets ID (destination)', hint: 'Peut être le même que la source' },
+  'SHEET_NAME': { label: 'Nom de l\'onglet', hint: 'Ex: Feuille1, Sheet1, DATA' },
+  'SHEET_NAME_SOURCE': { label: 'Nom de l\'onglet source', hint: 'Ex: Feuille1' },
+  'SHEET_NAME_DESTINATION': { label: 'Nom de l\'onglet destination', hint: 'Ex: Resultat' },
+  'COLONNE_A': { label: 'Nom de la colonne A', hint: 'Exact nom de la colonne dans ton sheet' },
+  'COLONNE_B': { label: 'Nom de la colonne B', hint: 'Exact nom de la colonne dans ton sheet' },
+  'TELEGRAM_CHAT_ID': { label: 'Telegram Chat ID', hint: 'Ex: -1001234567890 (groupe) ou 123456789 (user)' },
+  'TELEGRAM_BOT_TOKEN': { label: 'Telegram Bot Token', hint: 'Ex: 1234567890:AAF...' },
+  'EMAIL_RECIPIENT': { label: 'Email destinataire', hint: 'Ex: toi@gmail.com' },
+  'EMAIL_SENDER': { label: 'Email expéditeur', hint: 'Ex: toi@gmail.com' },
+  'WEBHOOK_PATH': { label: 'Chemin du webhook', hint: 'Ex: mon-webhook (sans /webhook/)' },
+  'API_URL': { label: 'URL de l\'API', hint: 'Ex: https://api.exemple.com/endpoint' },
+  'API_KEY': { label: 'Clé API', hint: 'Ta clé d\'authentification' },
+  'CREDENTIAL_ID': { label: 'ID de credential n8n', hint: 'Visible dans n8n → Credentials' },
+  'RSS_URL': { label: 'URL du flux RSS', hint: 'Ex: https://www.lemonde.fr/rss/une.xml' },
+  'SEARCH_QUERY': { label: 'Requête de recherche', hint: 'Mots-clés à filtrer' },
+  'GOOGLE_OAUTH2_CREDENTIAL_ID': { label: 'Google OAuth2 Credential ID', hint: 'Visible dans n8n → Credentials → ton compte Google' },
+  'GOOGLE_SHEETS_CREDENTIAL_ID': { label: 'Google Sheets Credential ID', hint: 'Visible dans n8n → Credentials → Google Sheets account' },
+  'DRIVE_FOLDER_ID': { label: 'Google Drive Folder ID', hint: 'Copie l\'ID depuis l\'URL du dossier Drive' },
+  'SLACK_WEBHOOK_URL': { label: 'Slack Webhook URL', hint: 'Ex: https://hooks.slack.com/services/...' },
+  'NOTION_DATABASE_ID': { label: 'Notion Database ID', hint: 'Visible dans l\'URL de ta base Notion' },
+  'AIRTABLE_BASE_ID': { label: 'Airtable Base ID', hint: 'Ex: appXXXXXXXXXXXXXX' },
+  'AIRTABLE_TABLE_NAME': { label: 'Airtable Table Name', hint: 'Nom exact de la table Airtable' },
+  'SHEET_ID': { label: 'Sheet ID (onglet)', hint: '0 pour le premier onglet, sinon visible dans l\'URL' },
+  'COLUMN_INDEX': { label: 'Index de colonne', hint: '0 = colonne A, 1 = colonne B, etc.' },
+  'FILTER_QUERY': { label: 'Requête de filtrage', hint: 'Ex: status = "actif"' },
+};
+
+function extractPlaceholders(warnings) {
+  const placeholders = new Set();
+  const regex = /([A-Z][A-Z0-9_]{3,})/g;
+  warnings.forEach(w => {
+    let m;
+    while ((m = regex.exec(w)) !== null) {
+      const p = m[1];
+      if (PLACEHOLDER_MAP[p] || (p.includes('_') && p === p.toUpperCase() && p.length > 4)) {
+        placeholders.add(p);
+      }
+    }
+  });
+  // Also scan warning text for "Remplacer X par" patterns
+  warnings.forEach(w => {
+    const match = w.match(/[Rr]emplacer?\s+([A-Z][A-Z0-9_]{3,})\s+par/g);
+    if (match) {
+      match.forEach(m => {
+        const p = m.match(/([A-Z][A-Z0-9_]{3,})/);
+        if (p) placeholders.add(p[1]);
+      });
+    }
+  });
+  return [...placeholders];
+}
+
+function buildConfigureForm(warnings) {
+  const placeholders = extractPlaceholders(warnings);
+  if (placeholders.length === 0) return;
+
+  const container = document.getElementById('configure-fields');
+  container.innerHTML = '';
+  placeholders.forEach(p => {
+    const info = PLACEHOLDER_MAP[p] || { label: p.replace(/_/g, ' '), hint: 'Remplace ce placeholder' };
+    const div = document.createElement('div');
+    div.className = 'configure-field';
+    div.innerHTML = '<label>' + info.label + '</label>' +
+      '<input type="text" id="cfg-' + p + '" placeholder="' + info.hint + '" data-placeholder="' + p + '">' +
+      '<div class="field-hint">' + info.hint + '</div>';
+    container.appendChild(div);
+  });
+
+  state.configPlaceholders = placeholders;
+  document.getElementById('configure-block').classList.add('show');
+}
+
+async function doConfigureWorkflow() {
+  if (!state.workflowId) { log('err', 'Aucun workflow ID'); return; }
+
+  const placeholders = state.configPlaceholders || [];
+  const values = {};
+  let hasEmpty = false;
+
+  placeholders.forEach(p => {
+    const el = document.getElementById('cfg-' + p);
+    const val = el ? el.value.trim() : '';
+    if (!val) { hasEmpty = true; el && (el.style.borderColor = 'var(--danger)'); }
+    else { values[p] = val; el && (el.style.borderColor = ''); }
+  });
+
+  if (hasEmpty) { log('err', 'Remplis tous les champs'); return; }
+
+  const btn = document.getElementById('btn-configure');
+  btn.disabled = true; btn.classList.add('loading');
+
+  try {
+    const n8nBase = document.getElementById('webhook-url').value.trim().replace('/webhook/generer-workflow', '');
+    const jwt = 'YOUR_N8N_API_KEY';
+
+    log('inf', 'Récupération du workflow...');
+    const getRes = await fetch(`${n8nBase}/api/v1/workflows/${state.workflowId}`, {
+      headers: { 'X-N8N-API-KEY': jwt }
+    });
+    if (!getRes.ok) throw new Error('Impossible de récupérer le workflow');
+    let wfText = await getRes.text();
+
+    // Replace all placeholders
+    let count = 0;
+    Object.entries(values).forEach(([p, v]) => {
+      const before = wfText;
+      wfText = wfText.split(p).join(v);
+      if (wfText !== before) { count++; log('ok', `${p} → ${v}`); }
+    });
+
+    const wf = JSON.parse(wfText);
+    log('inf', `${count} placeholder(s) remplacé(s) — application...`);
+
+    // PUT corrected workflow
+    const putRes = await fetch(`${n8nBase}/api/v1/workflows/${state.workflowId}`, {
+      method: 'PUT',
+      headers: { 'X-N8N-API-KEY': jwt, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings })
+    });
+    if (!putRes.ok) throw new Error('Erreur lors de la mise à jour');
+
+    // Activate
+    await fetch(`${n8nBase}/api/v1/workflows/${state.workflowId}/activate`, {
+      method: 'POST',
+      headers: { 'X-N8N-API-KEY': jwt }
+    });
+
+    log('ok', 'Configuration injectée — workflow activé !');
+    document.getElementById('configure-success').classList.add('show');
+    document.getElementById('configure-block').style.borderColor = 'rgba(74,222,128,0.3)';
+    document.getElementById('configure-block').style.background = 'linear-gradient(135deg, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.02) 100%)';
+
+    // Auto-lance un audit statique pour vérifier la config
+    log('inf', 'Lancement audit post-configuration...');
+    await new Promise(r => setTimeout(r, 800));
+    await doPostConfigAudit();
+
+  } catch(e) {
+    log('err', e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+async function doPostConfigAudit() {
+  if (!state.workflowId) return;
+  try {
+    const url = document.getElementById('webhook-url').value.trim();
+    const data = await callApi({
+      phase: 'debug',
+      workflowId: state.workflowId,
+      error: 'Post-configuration audit : vérifie que tous les placeholders ont été remplacés par de vraies valeurs, que les credentials sont configurés, que les connexions sont correctes et que le workflow est prêt à être exécuté. Signale tout ce qui reste à faire.'
+    }, null);
+
+    if (data.success) {
+      document.getElementById('d-diag').textContent = data.diagnosis || '—';
+      document.getElementById('d-fix').textContent = data.fix || '—';
+      document.getElementById('debug-result').classList.add('show');
+      log('ok', 'Audit post-config : ' + (data.diagnosis || 'OK'));
+
+      // Switch to debug tab to show results
+      unlockTab(3);
+      setTimeout(() => goTab(3), 1200);
+    } else {
+      log('wrn', 'Audit post-config non disponible');
+    }
+  } catch(e) {
+    log('wrn', 'Audit post-config : ' + e.message);
+  }
+}
+
+// Init
+document.getElementById('tab-3').classList.remove('locked');
+log('inf', 'workflow-auto v2 — prêt');
+</script>
+</body>
+</html>

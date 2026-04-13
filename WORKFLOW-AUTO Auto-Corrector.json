@@ -1,0 +1,513 @@
+{
+  "name": "WORKFLOW-AUTO Auto-Corrector",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auto-correct",
+        "options": {}
+      },
+      "id": "07918a3e-f086-4350-8567-f610e762edc8",
+      "name": "Recevoir erreur",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        -96
+      ],
+      "webhookId": "25bc5b00-02f7-42ea-a6d5-8a5761702cd9"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nreturn [{ json: {\n  workflowId: body.workflowId,\n  errorMessage: body.errorMessage,\n  nodeName: body.nodeName || 'inconnu',\n  attempt: body.attempt || 1,\n  maxAttempts: 3\n}}];"
+      },
+      "id": "a2a8a8db-9f43-4a65-a57f-22cf574e5fef",
+      "name": "Initialiser contexte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-attempt",
+              "leftValue": "={{ $json.attempt }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ebf0a3ed-7a33-4331-9c71-69c824037d72",
+      "name": "Tentatives restantes",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b6e59d-28b3-489b-879a-d55712faadaf",
+      "name": "Recuperer workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 4096,\n  \"temperature\": 0,\n  \"system\": \"Tu es un expert n8n en mode auto-correction. Tu reçois un workflow n8n qui a planté et tu dois le corriger.\\n\\nRéponds UNIQUEMENT en JSON avec ce format :\\n{\\n  \\\"diagnosis\\\": \\\"Cause de l'erreur en 1 phrase\\\",\\n  \\\"fix\\\": \\\"Ce qui a été corrigé\\\",\\n  \\\"workflow\\\": { ... workflow n8n complet corrigé ... }\\n}\\n\\nRègles de correction :\\n- Ne change que ce qui est nécessaire pour corriger l'erreur.\\n- Conserve tous les autres nodes intacts.\\n- Le workflow corrigé doit avoir la même structure que l'original.\\n- errorWorkflow doit rester 'YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1' dans les settings.\\n- Ne mets JAMAIS de texte hors du JSON.\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Tentative {{ $('Initialiser contexte').first().json.attempt }}/3\\nWorkflow : {{ $json.name }}\\nNode fautif : {{ $('Initialiser contexte').first().json.nodeName }}\\nErreur : {{ $('Initialiser contexte').first().json.errorMessage }}\\n\\nWorkflow actuel :\\n{{ JSON.stringify($json) }}\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "dc1099c1-6d19-4e76-b58f-dcf5548b66e8",
+      "name": "Claude corrige",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet parsed;\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  parsed = JSON.parse(cleaned.substring(start, end + 1));\n} catch(err) {\n  return [{ json: { success: false, error: err.message } }];\n}\nconst workflowId = $('Initialiser contexte').first().json.workflowId;\nconst attempt = $('Initialiser contexte').first().json.attempt;\nreturn [{ json: {\n  workflowId,\n  attempt,\n  diagnosis: parsed.diagnosis,\n  fix: parsed.fix,\n  putBody: {\n    name: parsed.workflow.name,\n    nodes: parsed.workflow.nodes,\n    connections: parsed.workflow.connections,\n    settings: {\n      executionOrder: 'v1',\n      errorWorkflow: 'YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1'\n    }\n  }\n}}];"
+      },
+      "id": "7f88d025-428b-4826-8650-8ae602f80256",
+      "name": "Parser correction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.putBody }}",
+        "options": {}
+      },
+      "id": "2c4a48c3-488d-4c16-9ab9-f125a1aca914",
+      "name": "Appliquer correction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        512,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $('Parser correction').first().json.workflowId }}/activate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "15d11b8b-c286-43ca-aff6-32db2247b5fe",
+      "name": "Re-activer workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        704,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "id": "8ad26455-5fd2-49de-8129-74e7de735a4a",
+      "name": "Attendre 15s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        912,
+        -96
+      ],
+      "webhookId": "8610669c-1481-4d56-82fe-28100c9934d5"
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/executions?workflowId={{ $('Parser correction').first().json.workflowId }}&limit=1&status=error",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6cfcf65f-08f7-4417-9fcf-9187eb02e15b",
+      "name": "Verifier derniere execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -704,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const executions = $input.first().json.data || [];\nconst workflowId = $('Parser correction').first().json.workflowId;\nconst attempt = $('Parser correction').first().json.attempt;\n\nif (executions.length === 0) {\n  return [{ json: { stillFailing: false, workflowId, attempt } }];\n}\n\nconst lastExec = executions[0];\nconst execTime = new Date(lastExec.startedAt).getTime();\nconst now = Date.now();\nconst isRecent = (now - execTime) < 30000;\n\nif (isRecent && lastExec.status === 'error') {\n  return [{ json: {\n    stillFailing: true,\n    workflowId,\n    attempt: attempt + 1,\n    errorMessage: lastExec.data?.resultData?.error?.message || 'Erreur inconnue',\n    nodeName: lastExec.data?.resultData?.lastNodeExecuted || 'inconnu'\n  }}];\n}\n\nreturn [{ json: { stillFailing: false, workflowId, attempt } }];"
+      },
+      "id": "87323fe5-1608-4627-ab8b-1cf06edbfafd",
+      "name": "Analyser resultat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-still",
+              "leftValue": "={{ $json.stillFailing }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "96c8a871-d3b0-46db-8d02-3b0162dfeb30",
+      "name": "Encore en erreur",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_N8N_URL/webhook/auto-correct",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ workflowId: $json.workflowId, errorMessage: $json.errorMessage, nodeName: $json.nodeName, attempt: $json.attempt }) }}",
+        "options": {}
+      },
+      "id": "82592cd5-3fb4-428a-859a-3994ea2eb7d1",
+      "name": "Relancer correction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -96,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "TON_TELEGRAM_CHAT_ID",
+        "text": "=Workflow corrigé avec succès !\n\nID : {{ $('Parser correction').first().json.workflowId }}\nTentative : {{ $('Parser correction').first().json.attempt }}/3\nDiagnostic : {{ $('Parser correction').first().json.diagnosis }}\nCorrection : {{ $('Parser correction').first().json.fix }}\n\nLien : YOUR_N8N_URL/workflow/{{ $('Parser correction').first().json.workflowId }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "61b40aed-38c3-486f-a6bd-43c124aa86e7",
+      "name": "Notifier succes",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        288
+      ],
+      "webhookId": "10c8e1d9-4ea2-44fd-823b-431601a94cad",
+      "credentials": {
+        "telegramApi": {
+          "id": "mGiiyFXBFST6ILMd",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "TON_TELEGRAM_CHAT_ID",
+        "text": "=Echec auto-correction après 3 tentatives.\n\nID : {{ $('Initialiser contexte').first().json.workflowId }}\nDernière erreur : {{ $('Initialiser contexte').first().json.errorMessage }}\n\nIntervention manuelle requise.\nLien : YOUR_N8N_URL/workflow/{{ $('Initialiser contexte').first().json.workflowId }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "90985d1d-447f-4b8c-b56f-d14cb72bc06a",
+      "name": "Notifier echec definitif",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        16
+      ],
+      "webhookId": "11cf196c-6915-47fb-a353-d97bf70d63de",
+      "credentials": {
+        "telegramApi": {
+          "id": "mGiiyFXBFST6ILMd",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Recevoir erreur": {
+      "main": [
+        [
+          {
+            "node": "Initialiser contexte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialiser contexte": {
+      "main": [
+        [
+          {
+            "node": "Tentatives restantes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tentatives restantes": {
+      "main": [
+        [
+          {
+            "node": "Recuperer workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notifier echec definitif",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperer workflow": {
+      "main": [
+        [
+          {
+            "node": "Claude corrige",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude corrige": {
+      "main": [
+        [
+          {
+            "node": "Parser correction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser correction": {
+      "main": [
+        [
+          {
+            "node": "Appliquer correction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appliquer correction": {
+      "main": [
+        [
+          {
+            "node": "Re-activer workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-activer workflow": {
+      "main": [
+        [
+          {
+            "node": "Attendre 15s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attendre 15s": {
+      "main": [
+        [
+          {
+            "node": "Verifier derniere execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifier derniere execution": {
+      "main": [
+        [
+          {
+            "node": "Analyser resultat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyser resultat": {
+      "main": [
+        [
+          {
+            "node": "Encore en erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encore en erreur": {
+      "main": [
+        [
+          {
+            "node": "Relancer correction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notifier succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0b8fbaa0-173e-4dc0-bc26-ce302a3997e7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6d0e2ce111adb4d440a63ba6c181d30e6da34c7023061c30b6db878f70e04a4c"
+  },
+  "id": "1D83dA0Or5Pzj2YE",
+  "tags": []
+}

@@ -1,0 +1,418 @@
+{
+  "name": "WORKFLOW-AUTO Execute and Debug",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trigger-workflow",
+        "options": {}
+      },
+      "id": "00b5025e-84c1-4e21-8c43-455eb5cd2f86",
+      "name": "Webhook trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ce8742bd-98ee-4e91-8a48-372b3efcaa2d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.body.workflowId }}/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d07d9182-597d-4611-bf1f-b944f3fa0d16",
+      "name": "Executer le workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "path": "get-last-error",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f8a0d0fa-1b21-4450-bd2a-3ca2d683b19f",
+      "name": "Webhook get error",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        256
+      ],
+      "webhookId": "631b3590-98d6-48c5-b1ca-5b07224b64a5"
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/executions?workflowId={{ $json.query.workflowId }}&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d82c557d-ada0-4872-8e10-197bea359294",
+      "name": "Get derniere execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const executions = $input.first().json.data || [];\nconst workflowId = $('Webhook get error').first().json.query.workflowId;\n\nif(executions.length === 0) {\n  return [{ json: { status: 'no_execution', hasError: false, workflowId } }];\n}\n\nconst last = executions[0];\n\nif(last.status === 'running') {\n  return [{ json: { status: 'running', hasError: false, workflowId, executionId: last.id } }];\n}\n\nif(last.status === 'error') {\n  const errorMsg = last.data?.resultData?.error?.message\n    || last.data?.resultData?.error?.description\n    || 'Erreur inconnue';\n  const nodeName = last.data?.resultData?.lastNodeExecuted || 'inconnu';\n  return [{ json: { status: 'error', hasError: true, workflowId, errorMessage: errorMsg, nodeName, executionId: last.id } }];\n}\n\nreturn [{ json: { status: last.status, hasError: false, workflowId, executionId: last.id } }];"
+      },
+      "id": "562b08a1-3963-41bb-9038-74c2e5d503a3",
+      "name": "Analyser execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c-err",
+              "leftValue": "={{ $json.hasError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "58358fb3-9a49-4f6b-a5ab-fb6ce13cc2f8",
+      "name": "Execution en erreur",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        608,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: $json.status, hasError: false, workflowId: $json.workflowId, executionId: $json.executionId || null }) }}",
+        "options": {}
+      },
+      "id": "bf59fc47-9aae-4fd4-ac00-ca595066faf4",
+      "name": "Reponse pas d erreur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "db757fce-0da4-450e-bea2-6ad10cbbbab5",
+      "name": "Recuperer workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 8192,\n  \"temperature\": 0,\n  \"system\": \"Tu es un expert n8n en mode debug. On te donne un workflow n8n existant et un message d'erreur.\\n\\nTon travail : analyser l'erreur, identifier le node fautif, corriger le workflow.\\n\\nRéponds TOUJOURS en JSON avec ce format exact :\\n{\\n  \\\"diagnosis\\\": \\\"Explication de l'erreur en 1-2 phrases\\\",\\n  \\\"fix\\\": \\\"Description de la correction appliquée\\\",\\n  \\\"workflow\\\": { ... le workflow n8n corrigé complet ... }\\n}\\n\\nNe mets JAMAIS de texte hors du JSON.\",\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Node fautif : {{ $('Analyser execution').first().json.nodeName }}\\nErreur : {{ $('Analyser execution').first().json.errorMessage }}\\n\\nWorkflow actuel :\\n{{ JSON.stringify($json) }}\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "2bcc321d-a6b7-43fc-bda3-941e4a8208a1",
+      "name": "Claude debug auto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1008,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content[0].text.trim();\nlet parsed;\ntry {\n  let cleaned = raw.replace(/```json\\n?/gi,'').replace(/```\\n?/gi,'').trim();\n  let depth = 0, start = -1, end = -1;\n  for (let i = 0; i < cleaned.length; i++) {\n    if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }\n    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }\n  }\n  if (start === -1 || end === -1) throw new Error('No valid JSON object found');\n  parsed = JSON.parse(cleaned.substring(start, end + 1));\n} catch(err) {\n  return [{ json: { success: false, error: err.message } }];\n}\nconst workflowId = $('Analyser execution').first().json.workflowId;\nreturn [{ json: {\n  workflowId,\n  diagnosis: parsed.diagnosis,\n  fix: parsed.fix,\n  putBody: {\n    name: parsed.workflow.name,\n    nodes: parsed.workflow.nodes,\n    connections: parsed.workflow.connections,\n    settings: { executionOrder: 'v1', errorWorkflow: 'YOUR_N8N_URL/workflow/RaHgXr2IpKEIfpw1' }\n  }\n}}];"
+      },
+      "id": "613c0f74-53d3-4b96-80ff-6080b56c83e4",
+      "name": "Parser correction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $json.workflowId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.putBody }}",
+        "options": {}
+      },
+      "id": "4e4d23af-3ff2-46eb-bf2d-8be863c57d6d",
+      "name": "Appliquer correction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1408,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=YOUR_N8N_URL/api/v1/workflows/{{ $('Parser correction').first().json.workflowId }}/activate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "YOUR_N8N_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83caa0c1-444b-4019-a4a8-f3052d13acfa",
+      "name": "Reactiver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'fixed', hasError: true, diagnosis: $('Parser correction').first().json.diagnosis, fix: $('Parser correction').first().json.fix, workflowId: $('Parser correction').first().json.workflowId }) }}",
+        "options": {}
+      },
+      "id": "c8a30a5c-33ab-4711-846d-42646d3f0f88",
+      "name": "Reponse correction",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1808,
+        192
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook trigger": {
+      "main": [
+        [
+          {
+            "node": "Executer le workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook get error": {
+      "main": [
+        [
+          {
+            "node": "Get derniere execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get derniere execution": {
+      "main": [
+        [
+          {
+            "node": "Analyser execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyser execution": {
+      "main": [
+        [
+          {
+            "node": "Execution en erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution en erreur": {
+      "main": [
+        [
+          {
+            "node": "Recuperer workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reponse pas d erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperer workflow": {
+      "main": [
+        [
+          {
+            "node": "Claude debug auto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude debug auto": {
+      "main": [
+        [
+          {
+            "node": "Parser correction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser correction": {
+      "main": [
+        [
+          {
+            "node": "Appliquer correction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appliquer correction": {
+      "main": [
+        [
+          {
+            "node": "Reactiver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reactiver": {
+      "main": [
+        [
+          {
+            "node": "Reponse correction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "eb51e101-a3cc-492d-914e-9ecb12f89164",
+  "meta": {
+    "instanceId": "6d0e2ce111adb4d440a63ba6c181d30e6da34c7023061c30b6db878f70e04a4c"
+  },
+  "id": "MFFNrA1FfeCeSJ2q",
+  "tags": []
+}
